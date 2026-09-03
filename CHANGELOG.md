@@ -1,5 +1,44 @@
 # Change Log
 
+## [v10.0]() (2026-09-03)
+
+**Breaking changes**
+- dropped Python 2 support. The package now requires Python 3.8 or newer. The `six` and `pytz` dependencies were removed.
+- invalid arguments now raise `TypeError` or `ValueError` instead of `AssertionError`. Code that catches `AssertionError` has to be updated.
+- removed the `RequestEventsEventClusters` result type.
+- removed the topic training methods from the `Analytics` class: `trainTopicOnTweets`, `trainTopicCreateTopic`, `trainTopicClearTopic`, `trainTopicAddDocument` and `trainTopicGetTrainedTopic`.
+- `EventRegistry.getArticleUris()` now accepts a single article url (string) only, since the endpoint maps one url per call.
+- `RequestArticlesInfo` and `RequestMentionsInfo` now reject `count` values above 100 (the API never returned more than 100 items per call).
+- iterating over `QueryArticlesIter`, `QueryEventsIter`, `QueryMentionsIter` or `QueryEventArticlesIter` before calling `execQuery()` raises a `RuntimeError`.
+- default hosts changed to `https://eventregistry.org` and `https://analytics.eventregistry.org`.
+- `settings.json` is now first looked up in `~/.eventregistry/` and only then in the module folder. The request log (see `EventRegistry.setLogging()`) is written to `~/.eventregistry/requests_log.txt`.
+
+**Fixed**
+- `TopicPage.setArticleIsDuplicateFilter()` wrote the value under a wrong key, so the filter was ignored by the server.
+- `ReturnInfo.getConf()` exported the article flags under `conceptFolderInfo`.
+- `QueryEvents.initWithEventUriList()` did not work when given a single uri as a string.
+- `count()` on the iterator classes no longer overwrites the requested result type of the query.
+- the first request is no longer delayed by `minDelayBetweenRequests`.
+- `ReturnInfo` and `*InfoFlags` default arguments are no longer shared between calls (mutable default arguments).
+- the API key is no longer written into the parameter dict provided by the caller.
+- `KeyboardInterrupt` is no longer swallowed by the request retry loop.
+- iterating over an iterator class a second time starts again from the first result.
+- `GetRecentArticles.getUpdates()` no longer fails when the response contains no activity.
+
+**Added**
+- offline unit tests that do not require an API key or network access (`tests/TestOfflineUnit.py`, `tests/TestRequestPayloads.py`) and new online tests for counts and mentions.
+- `examples/AnalyticsExamples.py` and several new examples in the existing example files.
+- return type annotations and stricter argument validation across the API.
+- `requirements.txt`, `.gitattributes` (LF line endings) and PyPI metadata (`long_description`, `python_requires`).
+
+**Updated**
+- the HTTP status codes returned by the API (204, 400, 401, 403, 429, 500, 503) are documented in `EventRegistry`. Requests are not repeated for 204, 400, 401 and 403 (the response would be the same), while 429, 500 and 503 indicate a temporary problem and the request is repeated after a short delay.
+- the exception raised on a failed request now includes the HTTP status code and its meaning in addition to the text returned by the server.
+- a warning is logged when the API returns status code 429 (too many simultaneous requests - at most 5 are allowed).
+- request retries are logged with the correct delay (5 seconds).
+- modernized the code base (`super()`, no explicit `object` base class, context managers for files, `functools.wraps` in the `deprecated` decorator, no wildcard imports in `QueryArticles`).
+
+
 ## [v9.1]() (2023-06-23)
 
 **Added**

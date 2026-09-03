@@ -90,9 +90,13 @@ res = er.execQuery(q)
 
 #
 # OTHER AGGREGATES (INSTEAD OF OBTAINING EVENTS)
+# each aggregate is computed over the events that match the query. Below each example is a shortened
+# version of the returned result so that you can see the structure of the output.
+# When the query matches a large number of events, the aggregate is computed on a sample of the events -
+# in that case the result also contains a "warning" and "usedResults" (sample size) next to "totalResults".
 #
 
-# find events that occurred in Germany between 2014-04-16 and 2014-04-28
+# find events that occurred in Germany between 2017-12-16 and 2018-01-28
 # from the resulting events produce:
 q = QueryEvents(
     locationUri = er.getLocationUri("Germany"),
@@ -101,29 +105,200 @@ q = QueryEvents(
 # get the list of top concepts about the events that match criteria
 q.setRequestedResult(RequestEventsConceptAggr())
 res = er.execQuery(q)
+# {
+#     "conceptAggr": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "results": [
+#             {"uri": "http://en.wikipedia.org/wiki/Berlin", "type": "loc", "label": {"eng": "Berlin"}, "location": {"type": "place", "label": {"eng": "Berlin"}, "country": {"type": "country", "label": {"eng": "Germany"}}}, "score": 100},
+#             {"uri": "http://en.wikipedia.org/wiki/Deutsche_Presse-Agentur", "type": "org", "label": {"eng": "Deutsche Presse-Agentur"}, "score": 66.2},
+#             ...
+#         ]
+#     }
+# }
 
 # find where the events occurred geographically
 q.setRequestedResult(RequestEventsLocAggr())
 res = er.execQuery(q)
+# {
+#     "locAggr": {
+#         "usedResults": 3464,
+#         "totalResults": 3464,
+#         "results": [
+#             {"count": 636, "concept": {"uri": "http://en.wikipedia.org/wiki/Berlin", "type": "loc", "label": {"eng": "Berlin"}, "location": {"type": "place", "wikiUri": "http://en.wikipedia.org/wiki/Berlin", "label": {"eng": "Berlin"}, "lat": 52.5, "long": 13.42, "country": {"type": "country", "wikiUri": "http://en.wikipedia.org/wiki/Germany", "label": {"eng": "Germany"}, "lat": 51.5, "long": 10.5}}}},
+#             {"count": 230, "concept": {"uri": "http://en.wikipedia.org/wiki/Munich", "type": "loc", "label": {"eng": "Munich"}, "location": {...}}},
+#             ...
+#         ]
+#     }
+# }
 
 # find when the events matching the criteria occurred
 q.setRequestedResult(RequestEventsTimeAggr())
 res = er.execQuery(q)
+# {
+#     "timeAggr": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "results": [
+#             {"date": "2017-12-28", "count": 109},
+#             {"date": "2018-01-01", "count": 117},
+#             ...
+#         ]
+#     }
+# }
 
 # the trending information about the top people involved in these events
+# conceptFreq[i] in each trend item is the number of articles on that date that mention conceptInfo[i]
+# totArts is the total number of all articles published on that date (can be used to normalize the frequencies)
 q.setRequestedResult(RequestEventsConceptTrends(conceptCount = 40,
     returnInfo = ReturnInfo(conceptInfo = ConceptInfoFlags(type = ["person"]))))
 res = er.execQuery(q)
+# {
+#     "conceptTrends": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "conceptInfo": [
+#             {"uri": "http://en.wikipedia.org/wiki/Pierre-Emerick_Aubameyang", "type": "person", "score": 1, "label": {"eng": "Pierre-Emerick Aubameyang"}},
+#             {"uri": "http://en.wikipedia.org/wiki/Martin_Schulz", "type": "person", "score": 1, "label": {"eng": "Martin Schulz"}},
+#             ...
+#         ],
+#         "trends": [
+#             {"date": "2017-12-16", "conceptFreq": [0, 0, 204], "totArts": 127130},
+#             {"date": "2017-12-17", "conceptFreq": [0, 0, 256], "totArts": 123591},
+#             ...
+#         ]
+#     }
+# }
 
 # get the top categories about the same events
 q.setRequestedResult(RequestEventsCategoryAggr())
 res = er.execQuery(q)
+# {
+#     "categoryAggr": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "results": [
+#             {"uri": "news/Sports", "label": "news/Sports", "count": 1056},
+#             {"uri": "news/Politics", "label": "news/Politics", "count": 904},
+#             ...
+#         ]
+#     }
+# }
+
+# get the top keywords that summarize the matching events
+q.setRequestedResult(RequestEventsKeywordAggr())
+res = er.execQuery(q)
+# {
+#     "keywordAggr": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "results": [
+#             {"keyword": "spd", "weight": 0.184},
+#             {"keyword": "sagte", "weight": 0.161},
+#             ...
+#         ]
+#     }
+# }
+
+# get the locations where the events occurred together with the time distribution of the events at each location
+q.setRequestedResult(RequestEventsLocTimeAggr())
+res = er.execQuery(q)
+# {
+#     "locTimeAggr": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "results": [
+#             {"concept": {"uri": "http://en.wikipedia.org/wiki/Bavaria", "type": "loc", "label": {"eng": "Bavaria"}, "location": {...}}, "counts": [{"date": "2017-12-16", "count": 3}, {"date": "2017-12-17", "count": 2}, ...]},
+#             {"concept": {"uri": "http://en.wikipedia.org/wiki/Berlin", "type": "loc", "label": {"eng": "Berlin"}, "location": {...}}, "counts": [{"date": "2017-12-16", "count": 9}, {"date": "2017-12-17", "count": 19}, ...]},
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the concept matrix - co-occurrence of the top concepts in the matching events
+# freqMatrix[i][j] is the number of events that mention both concepts[i] and concepts[j] (the diagonal is the frequency of the concept itself)
+# scoreMatrix[i][j] is the "interestingness" of the pair, computed with the selected measure (pmi by default)
+q.setRequestedResult(RequestEventsConceptMatrix())
+res = er.execQuery(q)
+# {
+#     "conceptMatrix": {
+#         "usedResults": 3464,
+#         "totalResults": 3464,
+#         "concepts": [
+#             {"uri": "http://en.wikipedia.org/wiki/Police", "type": "wiki", "label": {"eng": "Police"}},
+#             {"uri": "http://en.wikipedia.org/wiki/Association_football", "type": "wiki", "label": {"eng": "Association football"}},
+#             ...
+#         ],
+#         "freqMatrix": [
+#             [560, 7, ...],
+#             [7, 351, ...],
+#             ...
+#         ],
+#         "scoreMatrix": [
+#             [0, -2.09, ...],
+#             [-2.09, 0, ...],
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the top news sources that reported about the matching events
+# "counts.frequency" is the number of articles about the matching events published by the source
+q.setRequestedResult(RequestEventsSourceAggr())
+res = er.execQuery(q)
+# {
+#     "sourceAggr": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "countsPerSource": [
+#             {"source": {"uri": "t-online.de", "dataType": "news", "title": "T-online.de"}, "counts": {"frequency": 2315, "total": 4854}},
+#             {"source": {"uri": "stern.de", "dataType": "news", "title": "stern.de"}, "counts": {"frequency": 1288, "total": 4854}},
+#             ...
+#         ],
+#         "countsPerCountry": [
+#             {"uri": "http://en.wikipedia.org/wiki/Germany", "type": "loc", "label": {"eng": "Germany"}, "location": {"type": "country", "wikiUri": "http://en.wikipedia.org/wiki/Germany", "label": {"eng": "Germany"}, "lat": 51.5, "long": 10.5}, "frequency": 45182, "sources": null},
+#             {"uri": "http://en.wikipedia.org/wiki/Austria", "type": "loc", "label": {"eng": "Austria"}, "location": {...}, "frequency": 3215, "sources": null},
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the dates that are mentioned in the text of the articles about the matching events (not the event dates)
+q.setRequestedResult(RequestEventsDateMentionAggr())
+res = er.execQuery(q)
+# {
+#     "dateMentionAggr": {
+#         "usedResults": 4854,
+#         "totalResults": 4854,
+#         "results": [
+#             {"date": "2000-07-27", "count": 5},
+#             {"date": "2001-09-11", "count": 5},
+#             ...
+#         ]
+#     }
+# }
 
 
 # query for events about Obama and produce the concept co-occurrence graph - which concepts appear frequently together in the matching events
 q = QueryEvents(conceptUri = er.getConceptUri("Obama"))
 q.setRequestedResult(RequestEventsConceptGraph(conceptCount = 200, linkCount = 500, eventsSampleSize = 2000))
 res = er.execQuery(q)
+# {
+#     "conceptGraph": {
+#         "usedResults": 26000,
+#         "totalResults": 341019,
+#         "concepts": [
+#             {"uri": "http://en.wikipedia.org/wiki/United_States", "type": "loc", "score": 1318.4, "label": {"eng": "United States"}, "location": {"type": "country", "label": {"eng": "United States"}}},
+#             {"uri": "http://en.wikipedia.org/wiki/Donald_Trump", "type": "person", "score": 1122.9, "label": {"eng": "Donald Trump"}},
+#             ...
+#         ],
+#         "links": [
+#             {"uri1": "http://en.wikipedia.org/wiki/United_States", "uri2": "http://en.wikipedia.org/wiki/Donald_Trump", "score": 812.5},
+#             {"uri1": "http://en.wikipedia.org/wiki/United_States", "uri2": "http://en.wikipedia.org/wiki/White_House", "score": 576.6},
+#             ...
+#         ]
+#     }
+# }
 
 #
 # COMPLEX QUERIES

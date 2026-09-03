@@ -18,7 +18,7 @@ class GetCounts(CountsBase):
     def __init__(self,
                  uriOrUriList: Union[str, List[str]],
                  type: Union[str, List[str]] = "concept",
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         obtain information about how frequently a concept or category is mentioned in the articles on particular dates
         The uri for these can be found using EventRegistry.getCustomConceptUri() method.
@@ -54,7 +54,7 @@ class GetCounts(CountsBase):
         CountsBase.__init__(self)
         self._setVal("action", "getCounts")
         self._setVal("type", type)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
         self._setVal("uri", uriOrUriList)
 
 
@@ -63,7 +63,7 @@ class GetCountsEx(CountsBase):
     def __init__(self,
                  uriOrUriList: Union[str, List[str]],
                  type: str = "concept",
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         obtain information about how frequently a concept or category is mentioned in the articles on particular dates
         Similar to GetCounts, but the output is more friendly for a larger set of provided uris/ids at once
@@ -95,12 +95,11 @@ class GetCountsEx(CountsBase):
             }
 
         @param uriOrUriList: concept/category uri or a list of uris
-        @param source: input source information from which to compute top trends. Options: "news", "social"
         @param type: what do the uris represent? "concept" or "category"
         @param returnInfo: what details should be included in the returned information
         """
         CountsBase.__init__(self)
         self._setVal("action", "getCountsEx")
         self._setVal("type", type)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
         self._setVal("uri", uriOrUriList)

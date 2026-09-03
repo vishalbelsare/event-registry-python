@@ -1,9 +1,9 @@
 from .Base import QueryParamsBase, QueryItems
-import six, datetime
+import datetime
 from typing import Union, List
 
 
-class _QueryCore(object):
+class _QueryCore:
     def __init__(self):
         self._queryObj = {}
 
@@ -100,12 +100,14 @@ class BaseQuery(_QueryCore):
             self._queryObj["keywordLoc"] = keywordLoc
 
         if minMaxArticlesInEvent is not None:
-            assert isinstance(minMaxArticlesInEvent, tuple), "minMaxArticlesInEvent parameter should either be None or a tuple with two integer values"
+            if not (isinstance(minMaxArticlesInEvent, tuple)):
+                raise TypeError("minMaxArticlesInEvent parameter should either be None or a tuple with two integer values")
             self._queryObj["minArticlesInEvent"] = minMaxArticlesInEvent[0]
             self._queryObj["maxArticlesInEvent"] = minMaxArticlesInEvent[1]
 
         if exclude is not None:
-            assert isinstance(exclude, (CombinedQuery, BaseQuery)), "exclude parameter was not a CombinedQuery or BaseQuery instance"
+            if not (isinstance(exclude, (CombinedQuery, BaseQuery))):
+                raise TypeError("exclude parameter was not a CombinedQuery or BaseQuery instance")
             self._queryObj["$not"] = exclude.getQuery()
 
 
@@ -118,11 +120,11 @@ class BaseQuery(_QueryCore):
             self._queryObj[propName] = { value.getOper(): value.getItems() }
 
         # if we have a string value, just use it
-        elif isinstance(value, six.string_types):
+        elif isinstance(value, str):
             self._queryObj[propName] = value
         # there should be no other valid types
         else:
-            assert False, "Parameter '%s' was of unsupported type. It should either be None, a string or an instance of QueryItems" % (propName)
+            raise TypeError("Parameter '%s' was of unsupported type. It should either be None, a string or an instance of QueryItems" % (propName))
 
 
 
@@ -139,15 +141,19 @@ class CombinedQuery(_QueryCore):
         @param queryArr: a list of items on which to perform an AND operation. Items can be either a CombinedQuery or BaseQuery instances.
         @param exclude: a instance of BaseQuery, CombinedQuery or None. Used to filter out results matching the other criteria specified in this query
         """
-        assert isinstance(queryArr, list), "provided argument as not a list"
-        assert len(queryArr) > 0, "queryArr had an empty list"
+        if not (isinstance(queryArr, list)):
+            raise TypeError("provided argument as not a list")
+        if not (len(queryArr) > 0):
+            raise ValueError("queryArr had an empty list")
         q = CombinedQuery()
         q.setQueryParam("$and", [])
         for item in queryArr:
-            assert isinstance(item, (CombinedQuery, BaseQuery)), "item in the list was not a CombinedQuery or BaseQuery instance"
+            if not (isinstance(item, (CombinedQuery, BaseQuery))):
+                raise TypeError("item in the list was not a CombinedQuery or BaseQuery instance")
             q.getQuery()["$and"].append(item.getQuery())
         if exclude is not None:
-            assert isinstance(exclude, (CombinedQuery, BaseQuery)), "exclude parameter was not a CombinedQuery or BaseQuery instance"
+            if not (isinstance(exclude, (CombinedQuery, BaseQuery))):
+                raise TypeError("exclude parameter was not a CombinedQuery or BaseQuery instance")
             q.setQueryParam("$not", exclude.getQuery())
         return q
 
@@ -160,15 +166,19 @@ class CombinedQuery(_QueryCore):
         @param queryArr: a list of items on which to perform an OR operation. Items can be either a CombinedQuery or BaseQuery instances.
         @param exclude: a instance of BaseQuery, CombinedQuery or None. Used to filter out results matching the other criteria specified in this query
         """
-        assert isinstance(queryArr, list), "provided argument as not a list"
-        assert len(queryArr) > 0, "queryArr had an empty list"
+        if not (isinstance(queryArr, list)):
+            raise TypeError("provided argument as not a list")
+        if not (len(queryArr) > 0):
+            raise ValueError("queryArr had an empty list")
         q = CombinedQuery()
         q.setQueryParam("$or", [])
         for item in queryArr:
-            assert isinstance(item, (CombinedQuery, BaseQuery)), "item in the list was not a CombinedQuery or BaseQuery instance"
+            if not (isinstance(item, (CombinedQuery, BaseQuery))):
+                raise TypeError("item in the list was not a CombinedQuery or BaseQuery instance")
             q.getQuery()["$or"].append(item.getQuery())
         if exclude is not None:
-            assert isinstance(exclude, (CombinedQuery, BaseQuery)), "exclude parameter was not a CombinedQuery or BaseQuery instance"
+            if not (isinstance(exclude, (CombinedQuery, BaseQuery))):
+                raise TypeError("exclude parameter was not a CombinedQuery or BaseQuery instance")
             q.setQueryParam("$not", exclude.getQuery())
         return q
 
@@ -214,7 +224,8 @@ class ComplexArticleQuery(_QueryCore):
         """
         super(ComplexArticleQuery, self).__init__()
 
-        assert isinstance(query, (CombinedQuery, BaseQuery)), "query parameter was not a CombinedQuery or BaseQuery instance"
+        if not (isinstance(query, (CombinedQuery, BaseQuery))):
+            raise TypeError("query parameter was not a CombinedQuery or BaseQuery instance")
         self._queryObj["$query"] = query.getQuery()
         filter = {}
         if dataType != "news":
@@ -257,7 +268,8 @@ class ComplexEventQuery(_QueryCore):
         """
         super(ComplexEventQuery, self).__init__()
 
-        assert isinstance(query, (CombinedQuery, BaseQuery)), "query parameter was not a CombinedQuery or BaseQuery instance"
+        if not (isinstance(query, (CombinedQuery, BaseQuery))):
+            raise TypeError("query parameter was not a CombinedQuery or BaseQuery instance")
         filter = {}
         if minSentiment is not None:
             filter["minSentiment"] = minSentiment
@@ -288,7 +300,8 @@ class ComplexMentionQuery(_QueryCore):
         """
         super(ComplexMentionQuery, self).__init__()
 
-        assert isinstance(query, (CombinedQuery, BaseQuery)), "query parameter was not a CombinedQuery or BaseQuery instance"
+        if not (isinstance(query, (CombinedQuery, BaseQuery))):
+            raise TypeError("query parameter was not a CombinedQuery or BaseQuery instance")
         filter = {}
         if minSentiment is not None:
             filter["minSentiment"] = minSentiment

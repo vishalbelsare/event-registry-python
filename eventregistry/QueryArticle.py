@@ -37,7 +37,8 @@ class QueryArticle(Query):
         Set the single result type that you would like to be returned. If some other request type was previously set, it will be overwritten.
         Result types can be the classes that extend RequestArticle base class (see classes below).
         """
-        assert isinstance(requestArticle, RequestArticle), "QueryArticle class can only accept result requests that are of type RequestArticle"
+        if not (isinstance(requestArticle, RequestArticle)):
+            raise TypeError("QueryArticle class can only accept result requests that are of type RequestArticle")
         self.resultTypeList = [requestArticle]
 
 
@@ -53,14 +54,14 @@ class RequestArticle:
 
 
 class RequestArticleInfo(RequestArticle):
-    def __init__(self, returnInfo: ReturnInfo = ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))):
+    def __init__(self, returnInfo: Union[ReturnInfo, None] = None):
         """
         return details about the article
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticle, self).__init__()
+        super().__init__()
         self.resultType = "info"
-        self.__dict__.update(returnInfo.getParams("info"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))).getParams("info"))
 
 
 
@@ -68,9 +69,9 @@ class RequestArticleSimilarArticles(RequestArticle):
     def __init__(self,
                  page: int = 1,
                  count: int = 20,
-                 lang: Union[str, List[str]] = ["eng"],
+                 lang: Union[str, List[str], None] = None,
                  limitPerLang: int = -1,
-                 returnInfo: ReturnInfo = ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return a list of similar articles based on the CCA
         @param page: page of the articles
@@ -79,15 +80,17 @@ class RequestArticleSimilarArticles(RequestArticle):
         @param limitPerLang: max number of articles per language to return (-1 for no limit)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticle, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 200, "at most 200 articles can be returned per call"
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 200):
+            raise ValueError("at most 200 articles can be returned per call")
         self.resultType = "similarArticles"
         self.similarArticlesPage = page
         self.similarArticlesCount = count
-        self.similarArticlesLang = lang
+        self.similarArticlesLang = lang if lang is not None else ["eng"]
         self.similarArticlesLimitPerLang = limitPerLang
-        self.__dict__.update(returnInfo.getParams("similarArticles"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))).getParams("similarArticles"))
 
 
 
@@ -96,7 +99,7 @@ class RequestArticleDuplicatedArticles(RequestArticle):
                  page: int = 1,
                  count: int = 20,
                  sortBy: str = "cosSim", sortByAsc: bool = False,
-                 returnInfo: ReturnInfo = ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return a list of duplicated articles of the current article
         @param page: page of the articles
@@ -105,25 +108,27 @@ class RequestArticleDuplicatedArticles(RequestArticle):
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticle, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 200, "at most 200 articles can be returned per call"
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 200):
+            raise ValueError("at most 200 articles can be returned per call")
         self.resultType = "duplicatedArticles"
         self.duplicatedArticlesPage = page
         self.duplicatedArticlesCount = count
         self.duplicatedArticlesSortBy = sortBy
         self.duplicatedArticlesSortByAsc = sortByAsc
-        self.__dict__.update(returnInfo.getParams("duplicatedArticles"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))).getParams("duplicatedArticles"))
 
 
 
 class RequestArticleOriginalArticle(RequestArticle):
     def __init__(self,
-                 returnInfo: ReturnInfo = ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return the article that is the original of the given article (the current article is a duplicate)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticle, self).__init__()
+        super().__init__()
         self.resultType = "originalArticle"
-        self.__dict__.update(returnInfo.getParams("originalArticle"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = -1))).getParams("originalArticle"))

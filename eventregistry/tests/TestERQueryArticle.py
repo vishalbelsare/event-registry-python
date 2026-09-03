@@ -2,6 +2,7 @@
 from eventregistry import *
 from eventregistry.tests.DataValidator import DataValidator
 
+
 class TestQueryArticle(DataValidator):
 
     def createQuery(self):
@@ -28,10 +29,10 @@ class TestQueryArticle(DataValidator):
         mapper = ArticleMapper(self.er)
         mappedUris = []
         for url in uniqueUrls:
-            # getArticleUri returns a list, so we extend the list of items
-            urls = mapper.getArticleUri(url)
-            if urls:
-                mappedUris.append(urls)
+            # getArticleUri returns a single uri (or None)
+            uri = mapper.getArticleUri(url)
+            if uri:
+                mappedUris.append(uri)
         if mappedUris == []:
             return
         q = QueryArticle.queryByUri(mappedUris)

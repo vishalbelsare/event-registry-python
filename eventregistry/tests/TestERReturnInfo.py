@@ -5,6 +5,7 @@ import unittest
 from eventregistry import *
 from eventregistry.tests.DataValidator import DataValidator
 
+
 class TestReturnInfo(DataValidator):
 
     def getEmptyReturnInfo(self):
@@ -38,7 +39,7 @@ class TestReturnInfo(DataValidator):
 
     def ensureValidCategory(self, category, testName):
         for prop in ["parentUri"]:
-            self.assertFalse(prop in category, "Property '%s' was not expected in source for test %s" % (prop, testName))
+            self.assertFalse(prop in category, "Property '%s' was not expected in category for test %s" % (prop, testName))
 
 
     def ensureValidLocation(self, location, testName):

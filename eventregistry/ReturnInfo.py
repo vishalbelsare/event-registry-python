@@ -5,9 +5,12 @@ from Event Registry requests
 the ReturnInfo class specifies all types of these parameters and is needed as
 a parameter in all query requests
 """
-import os, json
+import os
+import json
+from typing import Union
 
-class ReturnInfoFlagsBase(object):
+
+class ReturnInfoFlagsBase:
     """
     base class for the return info types
     """
@@ -43,16 +46,16 @@ class ReturnInfoFlagsBase(object):
         """
         if not hasattr(self, "vals"):
             self.vals = {}
-        dict = {}
+        vals = {}
         for key in list(self.vals.keys()):
             # if no prefix then lower the first letter
             if prefix == "":
                 newkey = key[:1].lower() + key[1:] if key else ""
-                dict[newkey] = self.vals[key]
+                vals[newkey] = self.vals[key]
             else:
                 newkey = key[:1].upper() + key[1:] if key else ""
-                dict[prefix + newkey] = self.vals[key]
-        return dict
+                vals[prefix + newkey] = self.vals[key]
+        return vals
 
 
     def _addKwdArgs(self, kwdArgs):
@@ -423,33 +426,42 @@ class ReturnInfo:
     @param conceptFolderInfo: what details about the concept folders should be returned (concept folders are sub-types of concepts so their information will be a property inside the concept information)
     """
     def __init__(self,
-                 articleInfo : ArticleInfoFlags = ArticleInfoFlags(),
-                 eventInfo : EventInfoFlags = EventInfoFlags(),
-                 sourceInfo : SourceInfoFlags = SourceInfoFlags(),
-                 categoryInfo : CategoryInfoFlags = CategoryInfoFlags(),
-                 conceptInfo : ConceptInfoFlags = ConceptInfoFlags(),
-                 locationInfo : LocationInfoFlags = LocationInfoFlags(),
-                 storyInfo : StoryInfoFlags = StoryInfoFlags(),
-                 mentionInfo : MentionInfoFlags = MentionInfoFlags(),
-                 conceptFolderInfo : ConceptFolderInfoFlags= ConceptFolderInfoFlags()):
-        assert isinstance(articleInfo, ArticleInfoFlags)
-        assert isinstance(eventInfo, EventInfoFlags)
-        assert isinstance(sourceInfo, SourceInfoFlags)
-        assert isinstance(categoryInfo, CategoryInfoFlags)
-        assert isinstance(conceptInfo, ConceptInfoFlags)
-        assert isinstance(locationInfo, LocationInfoFlags)
-        assert isinstance(storyInfo, StoryInfoFlags)
-        assert isinstance(mentionInfo, MentionInfoFlags)
-        assert isinstance(conceptFolderInfo, ConceptFolderInfoFlags)
-        self.articleInfo = articleInfo
-        self.eventInfo = eventInfo
-        self.sourceInfo = sourceInfo
-        self.categoryInfo = categoryInfo
-        self.conceptInfo = conceptInfo
-        self.locationInfo = locationInfo
-        self.storyInfo = storyInfo
-        self.mentionInfo = mentionInfo
-        self.conceptFolderInfo = conceptFolderInfo
+                 articleInfo: Union[ArticleInfoFlags, None] = None,
+                 eventInfo: Union[EventInfoFlags, None] = None,
+                 sourceInfo: Union[SourceInfoFlags, None] = None,
+                 categoryInfo: Union[CategoryInfoFlags, None] = None,
+                 conceptInfo: Union[ConceptInfoFlags, None] = None,
+                 locationInfo: Union[LocationInfoFlags, None] = None,
+                 storyInfo: Union[StoryInfoFlags, None] = None,
+                 mentionInfo: Union[MentionInfoFlags, None] = None,
+                 conceptFolderInfo: Union[ConceptFolderInfoFlags, None] = None):
+        self.articleInfo = articleInfo if articleInfo is not None else ArticleInfoFlags()
+        self.eventInfo = eventInfo if eventInfo is not None else EventInfoFlags()
+        self.sourceInfo = sourceInfo if sourceInfo is not None else SourceInfoFlags()
+        self.categoryInfo = categoryInfo if categoryInfo is not None else CategoryInfoFlags()
+        self.conceptInfo = conceptInfo if conceptInfo is not None else ConceptInfoFlags()
+        self.locationInfo = locationInfo if locationInfo is not None else LocationInfoFlags()
+        self.storyInfo = storyInfo if storyInfo is not None else StoryInfoFlags()
+        self.mentionInfo = mentionInfo if mentionInfo is not None else MentionInfoFlags()
+        self.conceptFolderInfo = conceptFolderInfo if conceptFolderInfo is not None else ConceptFolderInfoFlags()
+        if not (isinstance(self.articleInfo, ArticleInfoFlags)):
+            raise TypeError("articleInfo should be of type ArticleInfoFlags")
+        if not (isinstance(self.eventInfo, EventInfoFlags)):
+            raise TypeError("eventInfo should be of type EventInfoFlags")
+        if not (isinstance(self.sourceInfo, SourceInfoFlags)):
+            raise TypeError("sourceInfo should be of type SourceInfoFlags")
+        if not (isinstance(self.categoryInfo, CategoryInfoFlags)):
+            raise TypeError("categoryInfo should be of type CategoryInfoFlags")
+        if not (isinstance(self.conceptInfo, ConceptInfoFlags)):
+            raise TypeError("conceptInfo should be of type ConceptInfoFlags")
+        if not (isinstance(self.locationInfo, LocationInfoFlags)):
+            raise TypeError("locationInfo should be of type LocationInfoFlags")
+        if not (isinstance(self.storyInfo, StoryInfoFlags)):
+            raise TypeError("storyInfo should be of type StoryInfoFlags")
+        if not (isinstance(self.mentionInfo, MentionInfoFlags)):
+            raise TypeError("mentionInfo should be of type MentionInfoFlags")
+        if not (isinstance(self.conceptFolderInfo, ConceptFolderInfoFlags)):
+            raise TypeError("conceptFolderInfo should be of type ConceptFolderInfoFlags")
 
 
     @staticmethod
@@ -458,8 +470,10 @@ class ReturnInfo:
         load the configuration for the ReturnInfo from a fileName
         @param fileName: filename that contains the json configuration to use in the ReturnInfo
         """
-        assert os.path.exists(fileName), "File " + fileName + " does not exist"
-        conf = json.load(open(fileName, encoding="utf8"))
+        if not (os.path.exists(fileName)):
+            raise FileNotFoundError("File " + fileName + " does not exist")
+        with open(fileName, encoding="utf-8") as f:
+            conf = json.load(f)
         return ReturnInfo(
             articleInfo=ArticleInfoFlags(**conf.get("articleInfo", {})),
             eventInfo=EventInfoFlags(**conf.get("eventInfo", {})),
@@ -481,12 +495,12 @@ class ReturnInfo:
             "articleInfo": self.articleInfo._getFlags().copy(),
             "eventInfo": self.eventInfo._getFlags().copy(),
             "sourceInfo": self.sourceInfo._getFlags().copy(),
-            "categoryInfo":  self.categoryInfo._getFlags().copy(),
+            "categoryInfo": self.categoryInfo._getFlags().copy(),
             "conceptInfo": self.conceptInfo._getFlags().copy(),
             "locationInfo": self.locationInfo._getFlags().copy(),
             "storyInfo": self.storyInfo._getFlags().copy(),
             "mentionInfo": self.mentionInfo._getFlags().copy(),
-            "conceptFolderInfo": self.articleInfo._getFlags().copy()
+            "conceptFolderInfo": self.conceptFolderInfo._getFlags().copy()
         }
         conf["articleInfo"].update(self.articleInfo._getVals())
         conf["eventInfo"].update(self.eventInfo._getVals())
@@ -501,25 +515,24 @@ class ReturnInfo:
 
 
     def getParams(self, prefix = ""):
-        dict = {}
-        dict.update(self.articleInfo._getFlags())
-        dict.update(self.eventInfo._getFlags())
-        dict.update(self.sourceInfo._getFlags())
-        dict.update(self.conceptInfo._getFlags())
-        dict.update(self.categoryInfo._getFlags())
-        dict.update(self.locationInfo._getFlags())
-        dict.update(self.storyInfo._getFlags())
-        dict.update(self.mentionInfo._getFlags())
-        dict.update(self.conceptFolderInfo._getFlags())
+        params = {}
+        params.update(self.articleInfo._getFlags())
+        params.update(self.eventInfo._getFlags())
+        params.update(self.sourceInfo._getFlags())
+        params.update(self.conceptInfo._getFlags())
+        params.update(self.categoryInfo._getFlags())
+        params.update(self.locationInfo._getFlags())
+        params.update(self.storyInfo._getFlags())
+        params.update(self.mentionInfo._getFlags())
+        params.update(self.conceptFolderInfo._getFlags())
 
-        dict.update(self.articleInfo._getVals())
-        dict.update(self.eventInfo._getVals())
-        dict.update(self.sourceInfo._getVals())
-        dict.update(self.conceptInfo._getVals())
-        dict.update(self.categoryInfo._getVals())
-        dict.update(self.locationInfo._getVals())
-        dict.update(self.storyInfo._getVals())
-        dict.update(self.mentionInfo._getVals())
-        dict.update(self.conceptFolderInfo._getVals())
-        return dict
-
+        params.update(self.articleInfo._getVals())
+        params.update(self.eventInfo._getVals())
+        params.update(self.sourceInfo._getVals())
+        params.update(self.conceptInfo._getVals())
+        params.update(self.categoryInfo._getVals())
+        params.update(self.locationInfo._getVals())
+        params.update(self.storyInfo._getVals())
+        params.update(self.mentionInfo._getVals())
+        params.update(self.conceptFolderInfo._getVals())
+        return params

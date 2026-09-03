@@ -1,4 +1,4 @@
-﻿import six, json
+﻿import json
 from eventregistry.Base import *
 from eventregistry.ReturnInfo import *
 from eventregistry.Query import *
@@ -168,24 +168,31 @@ class QueryMentions(Query):
         self._setQueryArrVal(ignoreLang, "ignoreLang", None, "or")
 
         self._setValIfNotDefault("showDuplicates", showDuplicates, False)
-        assert startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100
-        assert endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100
-        assert startSourceRankPercentile < endSourceRankPercentile
+        if not (startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100):
+            raise ValueError("startSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100):
+            raise ValueError("endSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (startSourceRankPercentile < endSourceRankPercentile):
+            raise ValueError("startSourceRankPercentile should be smaller than endSourceRankPercentile")
         if startSourceRankPercentile != 0:
             self._setVal("startSourceRankPercentile", startSourceRankPercentile)
         if endSourceRankPercentile != 100:
             self._setVal("endSourceRankPercentile", endSourceRankPercentile)
         if minSentiment != -1:
-            assert minSentiment >= -1 and minSentiment <= 1
+            if not (minSentiment >= -1 and minSentiment <= 1):
+                raise ValueError("minSentiment should be a value between -1 and 1")
             self._setVal("minSentiment", minSentiment)
         if maxSentiment != 1:
-            assert maxSentiment >= -1 and maxSentiment <= 1
+            if not (maxSentiment >= -1 and maxSentiment <= 1):
+                raise ValueError("maxSentiment should be a value between -1 and 1")
             self._setVal("maxSentiment", maxSentiment)
         if minSentenceIndex is not None:
-            assert minSentenceIndex >= 0
+            if not (minSentenceIndex >= 0):
+                raise ValueError("minSentenceIndex should be at least 0")
             self._setVal("minSentenceIndex", minSentenceIndex)
         if maxSentenceIndex is not None:
-            assert maxSentenceIndex >= 0
+            if not (maxSentenceIndex >= 0):
+                raise ValueError("maxSentenceIndex should be at least 0")
             self._setVal("maxSentenceIndex", maxSentenceIndex)
 
         # set the information that should be returned
@@ -201,7 +208,8 @@ class QueryMentions(Query):
         Set the single result type that you would like to be returned. Any previously set result types will be overwritten.
         Result types can be the classes that extend RequestMentions base class (see classes below).
         """
-        assert isinstance(requestMentions, RequestMentions), "QueryMentions class can only accept result requests that are of type RequestMentions"
+        if not (isinstance(requestMentions, RequestMentions)):
+            raise TypeError("QueryMentions class can only accept result requests that are of type RequestMentions")
         self.resultTypeList = [requestMentions]
 
 
@@ -211,7 +219,8 @@ class QueryMentions(Query):
         instead of making a query, provide a list of mention URIs manually, and then produce the desired results on top of them
         """
         q = QueryMentions()
-        assert isinstance(uriList, str) or isinstance(uriList, list), "uriList has to be a list of strings or a string that represent mention uris"
+        if not (isinstance(uriList, str) or isinstance(uriList, list)):
+            raise TypeError("uriList has to be a list of strings or a string that represent mention uris")
         q.queryParams = { "action": "getMentions", "mentionUri": uriList }
         return q
 
@@ -227,7 +236,7 @@ class QueryMentions(Query):
         elif isinstance(uriWgtList, str):
             q.queryParams = { "action": "getMentions", "mentionUriWgtList": uriWgtList }
         else:
-            assert False, "uriWgtList parameter did not contain a list or a string"
+            raise TypeError("uriWgtList parameter did not contain a list or a string")
         return q
 
 
@@ -238,19 +247,22 @@ class QueryMentions(Query):
         """
         q = QueryMentions()
         # provided query as a string containing the json object
-        if isinstance(query, six.string_types):
-            foo = json.loads(query)
+        if isinstance(query, str):
+            try:
+                json.loads(query)
+            except ValueError:
+                raise ValueError("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
             q._setVal("query", query)
         # provided query as a python dict
         elif isinstance(query, dict):
             q._setVal("query", json.dumps(query))
         else:
-            assert False, "The instance of query parameter was not a string or a python dict"
+            raise TypeError("The instance of query parameter was not a string or a python dict")
         return q
 
 
 
-class QueryMentionsIter(QueryMentions, six.Iterator):
+class QueryMentionsIter(QueryMentions):
     """
     class that simplifies and combines functionality from QueryMentions and RequestMentionsInfo. It provides an iterator
     over the list of mentions that match the specified conditions
@@ -259,8 +271,11 @@ class QueryMentionsIter(QueryMentions, six.Iterator):
         """
         return the number of mentions that match the criteria
         """
+        # remember the currently requested result type so that calling count() does not change the query
+        prevResultTypeList = self.resultTypeList
         self.setRequestedResult(RequestMentionsInfo())
         res = eventRegistry.execQuery(self)
+        self.resultTypeList = prevResultTypeList
         if "error" in res:
             logger.error(res["error"])
         count = res.get("mentions", {}).get("totalResults", 0)
@@ -303,14 +318,17 @@ class QueryMentionsIter(QueryMentions, six.Iterator):
         q = QueryMentionsIter()
 
         # provided query as a string containing the json object
-        if isinstance(query, six.string_types):
-            foo = json.loads(query)
+        if isinstance(query, str):
+            try:
+                json.loads(query)
+            except ValueError:
+                raise ValueError("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
             q._setVal("query", query)
         # provided query as a python dict
         elif isinstance(query, dict):
             q._setVal("query", json.dumps(query))
         else:
-            assert False, "The instance of query parameter was not a string or a python dict"
+            raise TypeError("The instance of query parameter was not a string or a python dict")
         return q
 
 
@@ -320,7 +338,8 @@ class QueryMentionsIter(QueryMentions, six.Iterator):
         instead of making a query, provide a list of Mention URIs manually, and then produce the desired results on top of them
         """
         q = QueryMentionsIter()
-        assert isinstance(uriList, list), "uriList has to be a list of strings that represent mention uris"
+        if not (isinstance(uriList, list)):
+            raise TypeError("uriList has to be a list of strings that represent mention uris")
         q.queryParams = { "action": "getMentions", "mentionUri": uriList }
         return q
 
@@ -332,7 +351,7 @@ class QueryMentionsIter(QueryMentions, six.Iterator):
         # if we have already obtained all pages, then exit
         if self._totalPages is not None and self._mentionPage > self._totalPages:
             return
-        self.setRequestedResult(RequestMentionsInfo(page=self._mentionPage,
+        self.setRequestedResult(RequestMentionsInfo(page=self._mentionPage, count=self._mentionBatchSize,
             sortBy=self._sortBy, sortByAsc=self._sortByAsc,
             returnInfo = self._returnInfo))
         if self._er._verboseOutput:
@@ -347,6 +366,13 @@ class QueryMentionsIter(QueryMentions, six.Iterator):
 
 
     def __iter__(self):
+        if not hasattr(self, "_er"):
+            raise RuntimeError("Iterating is only possible after calling the execQuery() method first")
+        # reset the paging state so that a new iteration starts from the first result again
+        self._mentionPage = 0
+        self._totalPages = None
+        self._currItem = 0
+        self._mentionList = []
         return self
 
 
@@ -388,9 +414,11 @@ class RequestMentionsInfo(RequestMentions):
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestMentions, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 200, "at most 100 mentions can be returned per call"
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 100):
+            raise ValueError("at most 100 mentions can be returned per call")
         self.resultType = "mentions"
         self.mentionsPage = page
         self.mentionsCount = count
@@ -404,7 +432,8 @@ class RequestMentionsInfo(RequestMentions):
         """
         set the page of results to obtain
         """
-        assert page >= 1, "page has to be >= 1"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
         self.mentionsPage = page
 
 
@@ -421,9 +450,11 @@ class RequestMentionsUriWgtList(RequestMentions):
         @param sortBy: how are mentions sorted. Options: id (internal id), date (publishing date), cosSim (closeness to the event centroid), rel (relevance to the query), sourceImportance (manually curated score of source importance - high value, high importance), sourceImportanceRank (reverse of sourceImportance), sourceAlexaGlobalRank (global rank of the news source), sourceAlexaCountryRank (country rank of the news source), socialScore (total shares on social media), facebookShares (shares on Facebook only)
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False) according to the sortBy criteria
         """
-        super(RequestMentions, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 50000
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 50000):
+            raise ValueError("count should be at most 50000")
         self.resultType = "uriWgtList"
         self.uriWgtListPage = page
         self.uriWgtListCount = count
@@ -432,7 +463,8 @@ class RequestMentionsUriWgtList(RequestMentions):
 
 
     def setPage(self, page):
-        assert page >= 1, "page has to be >= 1"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
         self.uriWgtListPage = page
 
 
@@ -442,7 +474,7 @@ class RequestMentionsTimeAggr(RequestMentions):
         """
         return time distribution of resulting mentions
         """
-        super(RequestMentions, self).__init__()
+        super().__init__()
         self.resultType = "timeAggr"
 
 
@@ -453,7 +485,7 @@ class RequestMentionsConceptAggr(RequestMentions):
                  conceptCountPerType: Union[int, None] = None,
                  conceptScoring: str = "importance",
                  mentionsSampleSize: int = 10000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get aggreate of concepts of resulting mentions
         @param conceptCount: number of top concepts to return (at most 500)
@@ -466,49 +498,52 @@ class RequestMentionsConceptAggr(RequestMentions):
         @param mentionsSampleSize: on what sample of results should the aggregate be computed (at most 20000)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestMentions, self).__init__()
-        assert conceptCount <= 500
-        assert mentionsSampleSize <= 20000
+        super().__init__()
+        if not (conceptCount <= 500):
+            raise ValueError("conceptCount should be at most 500")
+        if not (mentionsSampleSize <= 20000):
+            raise ValueError("mentionsSampleSize should be at most 20000")
         self.resultType = "conceptAggr"
         self.conceptAggrConceptCount = conceptCount
         self.conceptAggrSampleSize = mentionsSampleSize
         self.conceptAggrScoring = conceptScoring
         if conceptCountPerType is not None:
             self.conceptAggrConceptCountPerType = conceptCountPerType
-        self.__dict__.update(returnInfo.getParams("conceptAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptAggr"))
 
 
 
 class RequestMentionsCategoryAggr(RequestMentions):
     def __init__(self,
                  mentionsSampleSize: int = 20000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return aggreate of categories of resulting mentions
         @param mentionsSampleSize: on what sample of results should the aggregate be computed (at most 50000)
         @param returnInfo: what details about the categories should be included in the returned information
         """
-        super(RequestMentions, self).__init__()
-        assert mentionsSampleSize <= 50000
+        super().__init__()
+        if not (mentionsSampleSize <= 50000):
+            raise ValueError("mentionsSampleSize should be at most 50000")
         self.resultType = "categoryAggr"
         self.categoryAggrSampleSize = mentionsSampleSize
-        self.__dict__.update(returnInfo.getParams("categoryAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("categoryAggr"))
 
 
 
 class RequestMentionsSourceAggr(RequestMentions):
     def __init__(self,
                  sourceCount: int = 50,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get aggreate of news sources of resulting mentions
         @param sourceCount: the number of top sources to return
         @param returnInfo: what details about the sources should be included in the returned information
         """
-        super(RequestMentions, self).__init__()
+        super().__init__()
         self.resultType = "sourceAggr"
         self.sourceAggrSourceCount = sourceCount
-        self.__dict__.update(returnInfo.getParams("sourceAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("sourceAggr"))
 
 
 class RequestMentionsKeywordAggr(RequestMentions):
@@ -518,8 +553,9 @@ class RequestMentionsKeywordAggr(RequestMentions):
         get top keywords in the resulting mentions
         @param mentionsSampleSize: on what sample of results should the aggregate be computed (at most 20000)
         """
-        super(RequestMentions, self).__init__()
-        assert mentionsSampleSize <= 20000
+        super().__init__()
+        if not (mentionsSampleSize <= 20000):
+            raise ValueError("mentionsSampleSize should be at most 20000")
         self.resultType = "keywordAggr"
         self.keywordAggrSampleSize = mentionsSampleSize
 
@@ -531,7 +567,7 @@ class RequestMentionsConceptGraph(RequestMentions):
                  linkCount: int = 50,
                  mentionsSampleSize: int = 10000,
                  skipQueryConcepts: bool = True,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get concept graph of resulting mentions. Identify concepts that frequently co-occur with other concepts
         @param conceptCount: how many concepts should be returned (at most 1000)
@@ -539,16 +575,19 @@ class RequestMentionsConceptGraph(RequestMentions):
         @param mentionsSampleSize: on what sample of results should the aggregate be computed (at most 50000)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestMentions, self).__init__()
-        assert conceptCount <= 1000
-        assert linkCount <= 2000
-        assert mentionsSampleSize <= 50000
+        super().__init__()
+        if not (conceptCount <= 1000):
+            raise ValueError("conceptCount should be at most 1000")
+        if not (linkCount <= 2000):
+            raise ValueError("linkCount should be at most 2000")
+        if not (mentionsSampleSize <= 50000):
+            raise ValueError("mentionsSampleSize should be at most 50000")
         self.resultType = "conceptGraph"
         self.conceptGraphConceptCount = conceptCount
         self.conceptGraphLinkCount = linkCount
         self.conceptGraphSampleSize = mentionsSampleSize
         self.conceptGraphSkipQueryConcepts = skipQueryConcepts
-        self.__dict__.update(returnInfo.getParams("conceptGraph"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptGraph"))
 
 
 
@@ -573,12 +612,15 @@ class RequestMentionsRecentActivity(RequestMentions):
         @param mandatorySourceLocation: return only mentions for which we know the source's geographic location
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestMentions, self).__init__()
-        assert maxMentionCount <= 2000
-        assert updatesAfterTm is None or updatesAfterMinsAgo is None, "You should specify either updatesAfterTm or updatesAfterMinsAgo parameter, but not both"
-        assert updatesUntilTm is None or updatesUntilMinsAgo is None, "You should specify either updatesUntilTm or updatesUntilMinsAgo parameter, but not both"
+        super().__init__()
+        if not (maxMentionCount <= 2000):
+            raise ValueError("maxMentionCount should be at most 2000")
+        if not (updatesAfterTm is None or updatesAfterMinsAgo is None):
+            raise ValueError("You should specify either updatesAfterTm or updatesAfterMinsAgo parameter, but not both")
+        if not (updatesUntilTm is None or updatesUntilMinsAgo is None):
+            raise ValueError("You should specify either updatesUntilTm or updatesUntilMinsAgo parameter, but not both")
         self.resultType = "recentActivityMentions"
-        self.recentActivityMentionsMaxMentionCount  = maxMentionCount
+        self.recentActivityMentionsMaxMentionCount = maxMentionCount
         if updatesAfterTm is not None:
             self.recentActivityMentionsUpdatesAfterTm = QueryParamsBase.encodeDateTime(updatesAfterTm)
         if updatesAfterMinsAgo is not None:
@@ -592,7 +634,6 @@ class RequestMentionsRecentActivity(RequestMentions):
         if updatesAfterUri is not None:
             self.recentActivityMentionsUpdatesAfterUri = updatesAfterUri
 
-        self.recentActivityMentionsMaxMentionCount = maxMentionCount
         self.recentActivityMentionsMandatorySourceLocation = mandatorySourceLocation
         if returnInfo is not None:
             self.__dict__.update(returnInfo.getParams("recentActivityMentions"))

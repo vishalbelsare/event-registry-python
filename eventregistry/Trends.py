@@ -17,8 +17,8 @@ class GetTrendingConcepts(TrendsBase):
     def __init__(self,
                  source: str = "news",
                  count: int = 20,
-                 conceptType: Union[str, List[str]] = ["person", "org", "loc"],
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 conceptType: Union[str, List[str], None] = None,
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get currently top trending concepts
         @param source: source information from which to compute top trends. Options: "news", "social", "pr", "blogs"
@@ -32,8 +32,8 @@ class GetTrendingConcepts(TrendsBase):
         if source != "social":
             self._setVal("dataType", source)
         self._setVal("conceptCount", count)
-        self._setVal("conceptType", conceptType)
-        self._update(returnInfo.getParams())
+        self._setVal("conceptType", conceptType if conceptType is not None else ["person", "org", "loc"])
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
 
 
 
@@ -41,7 +41,7 @@ class GetTrendingCategories(TrendsBase):
     def __init__(self,
                  source: str = "news",
                  count: int = 20,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get currently top trending categories
         @param source: source information from which to compute top trends. Options: "news", "social", "pr", "blogs"
@@ -54,14 +54,14 @@ class GetTrendingCategories(TrendsBase):
         if source != "social":
             self._setVal("dataType", source)
         self._setVal("categoryCount", count)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
 
 
 
 class GetTrendingCustomItems(TrendsBase):
     def __init__(self,
                  count: int = 20,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get currently top trending items for which the users provided the data
         this data can be stock prices, energy prices, etc...
@@ -71,7 +71,7 @@ class GetTrendingCustomItems(TrendsBase):
         TrendsBase.__init__(self)
         self._setVal("action", "getTrendingCustom")
         self._setVal("conceptCount", count)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
 
 
 
@@ -79,7 +79,7 @@ class GetTrendingConceptGroups(TrendsBase):
     def __init__(self,
                  source: str = "news",
                  count: int = 20,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get currently top trending groups of concepts
         a group can be identified by the concept type or by a concept class uri
@@ -91,12 +91,12 @@ class GetTrendingConceptGroups(TrendsBase):
         self._setVal("action", "getConceptTrendGroups")
         self._setVal("source", source)
         self._setVal("conceptCount", count)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
 
 
-    def getConceptTypeGroups(self, types: Union[str, List[str]] = ["person", "org", "loc"]):
+    def getConceptTypeGroups(self, types: Union[str, List[str], None] = None):
         """request trending of concepts of specified types"""
-        self._setVal("conceptType", types)
+        self._setVal("conceptType", types if types is not None else ["person", "org", "loc"])
 
 
     def getConceptClassUris(self, conceptClassUris: Union[str, List[str]]):

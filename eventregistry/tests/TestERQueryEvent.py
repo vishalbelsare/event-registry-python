@@ -2,6 +2,7 @@
 from eventregistry import *
 from eventregistry.tests.DataValidator import DataValidator
 
+
 class TestQueryEvent(DataValidator):
 
     def getValidEvent(self):
@@ -12,26 +13,36 @@ class TestQueryEvent(DataValidator):
 
 
     def testEventArticleFiltering(self):
-        q1 = QueryEventArticlesIter("eng-2860795")
-        counts1 = q1.count(self.er)
-        counts2 = QueryEventArticlesIter("eng-2860795", lang="eng").count(self.er)
-        self.assertTrue(counts1 != counts2)
-        counts3 = QueryEventArticlesIter("eng-2860795", conceptUri=self.er.getConceptUri("Donald Trump")).count(self.er)
-        self.assertTrue(counts1 != counts3)
-        counts4 = QueryEventArticlesIter("eng-2860795", keywords = "Trump").count(self.er)
-        self.assertTrue(counts1 != counts4)
-        counts5 = QueryEventArticlesIter("eng-2860795", sourceUri = self.er.getNewsSourceUri("fox")).count(self.er)
-        self.assertTrue(counts1 != counts5)
-        counts6 = QueryEventArticlesIter("eng-2860795", lang="eng", conceptUri=self.er.getConceptUri("Donald Trump")).count(self.er)
-        self.assertTrue(counts1 != counts6)
+        # use a live event instead of a hardcoded uri so that the test also works without access to the archive
+        eventUri = self.getValidEvent()
 
-        arts1 = [art for art in q1.execQuery(self.er)]
-        self.assertTrue(counts1 == len(arts1))
+        # read the event details so that we can filter by a language and a concept that actually appear in the event
+        q = QueryEvent(eventUri)
+        q.setRequestedResult(RequestEventInfo())
+        info = self.er.execQuery(q)[eventUri]["info"]
+        lang = sorted(info.get("articleCounts", {"eng": 0}).keys())[0]
+        concepts = info.get("concepts", [])
+        self.assertTrue(len(concepts) > 0, "Expected the event to have some concepts")
+        conceptUri = concepts[0]["uri"]
 
-        q = QueryEvent("eng-2860795")
-        q.setRequestedResult(RequestEventArticles(lang="eng", conceptUri=self.er.getConceptUri("Donald Trump")))
+        totalCount = QueryEventArticlesIter(eventUri).count(self.er)
+        self.assertTrue(totalCount > 0, "Expected the event to have some articles")
+
+        countsLang = QueryEventArticlesIter(eventUri, lang = lang).count(self.er)
+        self.assertTrue(0 < countsLang <= totalCount, "The language filtered count should be between 0 and the total count")
+        countsConcept = QueryEventArticlesIter(eventUri, conceptUri = conceptUri).count(self.er)
+        self.assertTrue(0 < countsConcept <= totalCount, "The concept filtered count should be between 0 and the total count")
+        countsBoth = QueryEventArticlesIter(eventUri, lang = lang, conceptUri = conceptUri).count(self.er)
+        self.assertTrue(countsBoth <= countsLang and countsBoth <= countsConcept, "Combining the filters should not increase the count")
+
+        arts = [art for art in QueryEventArticlesIter(eventUri).execQuery(self.er)]
+        self.assertTrue(totalCount == len(arts), "The iterator should return exactly the number of articles reported by count()")
+
+        # the same filters used through QueryEvent + RequestEventArticles should report the same number of matches
+        q = QueryEvent(eventUri)
+        q.setRequestedResult(RequestEventArticles(lang = lang, conceptUri = conceptUri))
         res = self.er.execQuery(q)
-        self.assertTrue(counts6 == res["eng-2860795"]["articles"]["totalResults"])
+        self.assertTrue(countsBoth == res[eventUri]["articles"]["totalResults"])
 
 
 
@@ -41,7 +52,7 @@ class TestQueryEvent(DataValidator):
         # try ascending order
         wgt = None
         for art in q.execQuery(self.er, sortBy="date", sortByAsc=True):
-            if wgt == None:
+            if wgt is None:
                 wgt = art["wgt"]
             self.assertTrue(art["wgt"] >= wgt)
             wgt = art["wgt"]
@@ -49,7 +60,7 @@ class TestQueryEvent(DataValidator):
         # try descending order
         wgt = None
         for art in q.execQuery(self.er, sortBy="date", sortByAsc=False):
-            if wgt == None:
+            if wgt is None:
                 wgt = art["wgt"]
             self.assertTrue(art["wgt"] <= wgt)
             wgt = art["wgt"]
@@ -146,7 +157,7 @@ class TestQueryEvent(DataValidator):
 
     def testEventArticlesIterator(self):
         # check that the iterator really downloads all articles in the event
-        iter = QueryEventArticlesIter("eng-2866653")
+        iter = QueryEventArticlesIter(self.getValidEvent())
         articleCount = iter.count(self.er)
         articles = [art for art in iter.execQuery(self.er)]
         if articleCount != len(articles):

@@ -13,9 +13,9 @@ class QueryStory(Query):
     @param storyUriOrList: a single story uri or a list of story uris
     """
     def __init__(self, storyUriOrList: Union[str, List[str], None] = None):
-        super(QueryStory, self).__init__()
+        super().__init__()
         self._setVal("action", "getStory")
-        if storyUriOrList != None:
+        if storyUriOrList is not None:
             self.queryByUri(storyUriOrList)
 
 
@@ -33,7 +33,8 @@ class QueryStory(Query):
         Set the single result type that you would like to be returned. If some other request type was previously set, it will be overwritten.
         Result types can be the classes that extend RequestStory base class (see classes below).
         """
-        assert isinstance(requestStory, RequestStory), "QueryStory class can only accept result requests that are of type RequestStory"
+        if not (isinstance(requestStory, RequestStory)):
+            raise TypeError("QueryStory class can only accept result requests that are of type RequestStory")
         self.resultTypeList = [requestStory]
 
 
@@ -52,10 +53,10 @@ class RequestStoryInfo(RequestStory):
     """
     return details about a story
     """
-    def __init__(self, returnInfo: ReturnInfo = ReturnInfo()):
-        super(RequestStory, self).__init__()
+    def __init__(self, returnInfo: Union[ReturnInfo, None] = None):
+        super().__init__()
         self.resultType = "info"
-        self.__dict__.update(returnInfo.getParams("info"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("info"))
 
 
 
@@ -67,7 +68,7 @@ class RequestStoryArticles(RequestStory):
                  page: int = 1,
                  count: int = 100,
                  sortBy: str = "cosSim", sortByAsc: bool = False,
-                 returnInfo: ReturnInfo = ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = 200))):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return articles in the story (cluster)
         @param page: page of the articles to return (1, 2, ...)
@@ -76,15 +77,17 @@ class RequestStoryArticles(RequestStory):
         @param sortByAsc: should the articles be sorted in ascending order (True) or descending (False) based on sortBy value
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestStory, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 100
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 100):
+            raise ValueError("count should be at most 100")
         self.resultType = "articles"
         self.articlesPage = page
         self.articlesCount = count
         self.articlesSortBy = sortBy
         self.articlesSortByAsc = sortByAsc
-        self.__dict__.update(returnInfo.getParams("articles"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = 200))).getParams("articles"))
 
 
 
@@ -100,7 +103,7 @@ class RequestStoryArticleUris(RequestStory):
         @param sortBy: order in which articles are sorted. Options: id (internal id), date (published date), cosSim (closeness to event centroid), sourceImportanceRank (importance of the news source, custom set), sourceAlexaGlobalRank (global rank of the news source), sourceAlexaCountryRank (country rank of the news source), socialScore (total shares in social media)
         @param sortByAsc: should the articles be sorted in ascending order (True) or descending (False) based on sortBy value
         """
-        super(RequestStory, self).__init__()
+        super().__init__()
         self.articleUrisSortBy = sortBy
         self.articleUrisSortByAsc = sortByAsc
         self.resultType = "articleUris"
@@ -112,38 +115,40 @@ class RequestStoryArticleTrend(RequestStory):
     return trending information for the articles about the story
     """
     def __init__(self,
-                 lang: Union[str, List[str]] = mainLangs,
+                 lang: Union[str, List[str], None] = None,
                  minArticleCosSim: float = -1,
-                 returnInfo: ReturnInfo = ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = 0))):
-        super(RequestStory, self).__init__()
+                 returnInfo: Union[ReturnInfo, None] = None):
+        super().__init__()
         self.resultType = "articleTrend"
-        self.articleTrendLang = lang
+        self.articleTrendLang = lang if lang is not None else mainLangs
         self.articleTrendMinArticleCosSim = minArticleCosSim
-        self.__dict__.update(returnInfo.getParams("articleTrend"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = 0))).getParams("articleTrend"))
 
 
 
 class RequestStorySimilarStories(RequestStory):
-    """
+    def __init__(self,
+                conceptInfoList: List[dict],
+                count: int = 50,
+                dateStart: Union[datetime.date, str, None] = None,
+                dateEnd: Union[datetime.date, str, None] = None,
+                lang: Union[str, List[str], None] = None,
+                returnInfo: Union[ReturnInfo, None] = None):
+        """
         compute and return a list of similar stories
-        @param conceptInfoList: array of concepts and their importance, e.g. [{ "uri": "http://en.wikipedia.org/wiki/Barack_Obama", "wgt": 100 }, ...]
+        @param conceptInfoList: list of concepts and their importance, e.g. [{ "uri": "http://en.wikipedia.org/wiki/Barack_Obama", "wgt": 100 }, ...]
         @param count: number of similar stories to return (at most 50)
         @param dateStart: what can be the oldest date of the similar stories
         @param dateEnd: what can be the newest date of the similar stories
-        @param addArticleTrendInfo: for the returned stories compute how they were trending (intensity of reporting) in different time periods
-        @param aggrHours: time span that is used as a unit when computing the trending info
+        @param lang: in which language(s) should be the similar stories
         @param returnInfo: what details should be included in the returned information
         """
-    def __init__(self,
-                conceptInfoList: Union[str, List[str]],
-                count: int = 50,                                          # number of similar stories to return
-                dateStart: Union[datetime.date, str, None] = None,        # what can be the oldest date of the similar stories
-                dateEnd: Union[datetime.date, str, None] = None,          # what can be the newest date of the similar stories
-                lang: Union[str, List[str]] = [],
-                returnInfo: ReturnInfo = ReturnInfo()):
-        super(RequestStory, self).__init__()
-        assert count <= 50
-        assert isinstance(conceptInfoList, list)
+        super().__init__()
+        if not (count <= 50):
+            raise ValueError("count should be at most 50")
+        if not (isinstance(conceptInfoList, list)):
+            raise TypeError("conceptInfoList should be of type list")
+        lang = lang if lang is not None else []
         self.action = "getSimilarStories"
         self.concepts = json.dumps(conceptInfoList)
         self.storiesCount = count
@@ -155,4 +160,4 @@ class RequestStorySimilarStories(RequestStory):
             self.lang = lang
         # setting resultType since we have to, but it's actually ignored on the backend
         self.resultType = "similarStories"
-        self.__dict__.update(returnInfo.getParams("similarStories"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("similarStories"))

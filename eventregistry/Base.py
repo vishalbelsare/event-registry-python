@@ -2,7 +2,7 @@
 utility classes for Event Registry
 """
 
-import six, warnings, os, sys, re, datetime, time
+import functools, warnings, re, datetime
 from eventregistry.Logger import logger
 from typing import Union, List, Dict
 
@@ -17,19 +17,15 @@ def deprecated(func):
     as deprecated. It will result in a warning being emmitted
     when the function is used."""
 
+    @functools.wraps(func)
     def new_func(*args, **kwargs):
-        warnings.simplefilter('always', DeprecationWarning) #turn off filter
         warnings.warn("Call to deprecated function {}.".format(func.__name__), category=DeprecationWarning, stacklevel=2)
-        warnings.simplefilter('default', DeprecationWarning) #reset filter
         return func(*args, **kwargs)
 
-    new_func.__name__ = func.__name__
-    new_func.__doc__ = func.__doc__
-    new_func.__dict__.update(func.__dict__)
     return new_func
 
 
-invalidCharRe = re.compile(r"[\x00-\x08]|\x0b|\x0c|\x0e|\x0f|[\x10-\x19]|[\x1a-\x1f]", re.IGNORECASE)
+invalidCharRe = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 def removeInvalidChars(text):
     return invalidCharRe.sub("", text)
 
@@ -41,7 +37,7 @@ def tryParseInt(s, base=10, val=None):
         return val
 
 
-class Struct(object):
+class Struct:
     """
     helper class for converting dict to a native python object
     instead of a["b"]["c"] we can write a.b.c
@@ -75,7 +71,6 @@ def createStructFromDict(data):
 class QueryItems:
     _AND = "$and"
     _OR = "$or"
-    _Undef = None
 
     def __init__(self, oper, items):
         self._oper = oper
@@ -96,7 +91,7 @@ class QueryItems:
         return self._items
 
 
-class QueryParamsBase(object):
+class QueryParamsBase:
     """
     Base class for Query and AdminQuery
     used for storing parameters for a query. Parameter values can either be
@@ -107,11 +102,16 @@ class QueryParamsBase(object):
         self.queryParams: dict = {}
 
 
+    def _getPath(self):
+        raise NotImplementedError("This method should be implemented in the child class to return the path to which the query should be sent")
+
+
     @staticmethod
-    def copy(obj: "QueryParamsBase"):
-        assert isinstance(obj, QueryParamsBase)
+    def copy(params: "QueryParamsBase"):
+        if not (isinstance(params, QueryParamsBase)):
+            raise TypeError("params should be of type QueryParamsBase")
         ret = QueryParamsBase()
-        ret.queryParams = dict(obj.queryParams)
+        ret.queryParams = dict(params.queryParams)
         return ret
 
 
@@ -122,10 +122,11 @@ class QueryParamsBase(object):
             return val.date().isoformat()
         elif isinstance(val, datetime.date):
             return val.isoformat()
-        elif isinstance(val, six.string_types):
-            assert re.match(r"^\d{4}-\d{2}-\d{2}$", val), f"date value '{val}' was not provided in the 'YYYY-MM-DD' format"
+        elif isinstance(val, str):
+            if not (re.match(r"^\d{4}-\d{2}-\d{2}$", val)):
+                raise ValueError(f"date value '{val}' was not provided in the 'YYYY-MM-DD' format")
             return val
-        raise AssertionError("date was not in the expected format")
+        raise TypeError("date should be a datetime, date or a string in the 'YYYY-MM-DD' format")
 
 
     @staticmethod
@@ -134,13 +135,13 @@ class QueryParamsBase(object):
         if isinstance(val, datetime.datetime):
             # if we have a datetime in some tz, we convert it first to UTC
             if val.utcoffset() is not None:
-                import pytz
-                val = val.astimezone(pytz.utc)
+                val = val.astimezone(datetime.timezone.utc)
             return val.isoformat()
-        elif isinstance(val, six.string_types):
-            assert re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$", val), f"datetime value '{val}' was not provided in the 'YYYY-MM-DDTHH:MM:SS.SSSS' format"
+        elif isinstance(val, str):
+            if not (re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$", val)):
+                raise ValueError(f"datetime value '{val}' was not provided in the 'YYYY-MM-DDTHH:MM:SS.SSSS' format")
             return val
-        raise AssertionError("datetime was not in the recognizable data type. Use datetime or string in ISO format")
+        raise TypeError("datetime was not in the recognizable data type. Use datetime or string in ISO format")
 
 
     def _clearVal(self, propName: str):
@@ -156,10 +157,7 @@ class QueryParamsBase(object):
 
     def _setVal(self, propName: str, val):
         """set a value of a property in the query"""
-        if isinstance(val, six.string_types):
-            # in python 2 we need to first encode, before removing the invalid characters
-            if six.PY2:
-                val = val.encode("utf8")
+        if isinstance(val, str):
             val = removeInvalidChars(val)
         self.queryParams[propName] = val
 
@@ -178,18 +176,15 @@ class QueryParamsBase(object):
 
     def _addArrayVal(self, propName: str, val):
         """add a value to an array of values for a property"""
-        if isinstance(val, six.string_types):
-            # in python 2 we need to first encode, before removing the invalid characters
-            if six.PY2:
-                val = val.encode("utf8")
+        if isinstance(val, str):
             val = removeInvalidChars(val)
         if propName not in self.queryParams:
             self.queryParams[propName] = []
         self.queryParams[propName].append(val)
 
 
-    def _update(self, object: Dict):
-        self.queryParams.update(object)
+    def _update(self, params: Dict):
+        self.queryParams.update(params)
 
 
     def _getQueryParams(self) -> Dict:
@@ -209,15 +204,17 @@ class QueryParamsBase(object):
             return
         # if we have an instance of QueryItems then apply it
         if isinstance(value, QueryItems):
+            oper = value.getOper().replace("$", "")
+            # if the user specified the QueryItems class but used the invalid operator type then raise an error
+            if not (propOperName is not None or oper == defaultOperName):
+                raise ValueError("An invalid operator type '%s' was used for property '%s'" % (oper, propName))
             self.queryParams[propName] = value.getItems()
             # if we need to specify the operator for the property
             if propOperName is not None:
-                self.queryParams[propOperName] = value.getOper().replace("$", "")
-            # if the user specified the QueryItems class but used the invalid operator type then raise an error
-            assert propOperName is not None or value.getOper().replace("$", "") == defaultOperName, "An invalid operator type '%s' was used for property '%s'" % (value.getOper().replace("$", ""), propName)
+                self.queryParams[propOperName] = oper
 
         # if we have a string value, just use it
-        elif isinstance(value, six.string_types):
+        elif isinstance(value, str):
             self.queryParams[propName] = value
 
         # if we have a list, set it, but also weport
@@ -231,7 +228,7 @@ class QueryParamsBase(object):
 
         # there should be no other valid types
         else:
-            assert False, f"Parameter '{propName}' was of unsupported type. It should either be None, a string or an instance of QueryItems"
+            raise TypeError(f"Parameter '{propName}' was of unsupported type. It should either be None, a string or an instance of QueryItems")
 
 
 

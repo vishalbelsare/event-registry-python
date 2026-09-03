@@ -7,12 +7,13 @@ from eventregistry.ReturnInfo import *
 from eventregistry.EventRegistry import EventRegistry
 from typing import Union, List
 
+
 class GetRecentEvents(QueryParamsBase):
     def __init__(self,
                  eventRegistry: EventRegistry,
                  mandatoryLang: Union[str, List[str], None] = None,
                  mandatoryLocation: bool = True,
-                 returnInfo: ReturnInfo = ReturnInfo(),
+                 returnInfo: Union[ReturnInfo, None] = None,
                  **kwargs):
         """
         Return info about recently added/modified events
@@ -29,7 +30,7 @@ class GetRecentEvents(QueryParamsBase):
         if mandatoryLang is not None:
             self._setVal("recentActivityEventsMandatoryLang", mandatoryLang)
         self.queryParams.update(kwargs)
-        self._update(returnInfo.getParams("recentActivityEvents"))
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("recentActivityEvents"))
 
 
     def _getPath(self):
@@ -58,7 +59,7 @@ class GetRecentArticles(QueryParamsBase):
                  eventRegistry: EventRegistry,
                  mandatorySourceLocation: bool = False,
                  articleLang: Union[str, List[str], None] = None,
-                 returnInfo: ReturnInfo = ReturnInfo(),
+                 returnInfo: Union[ReturnInfo, None] = None,
                  **kwargs):
         """
         Return info about recently added articles
@@ -74,7 +75,7 @@ class GetRecentArticles(QueryParamsBase):
         if articleLang is not None:
             self._setVal("recentActivityArticlesLang", articleLang)
         self.queryParams.update(kwargs)
-        self._update(returnInfo.getParams("recentActivityArticles"))
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("recentActivityArticles"))
 
 
     def _getPath(self):
@@ -97,6 +98,6 @@ class GetRecentArticles(QueryParamsBase):
                     self.queryParams["recentActivityArticles" + key[0].upper() + key[1:] + "UpdatesAfterUri"] = val
 
             # return the latest articles
-            return ret["recentActivityArticles"]["activity"]
+            return ret["recentActivityArticles"].get("activity", [])
         # or empty
         return []

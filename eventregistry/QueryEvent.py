@@ -1,4 +1,4 @@
-﻿import six, json
+﻿import json
 from eventregistry.Base import *
 from eventregistry.ReturnInfo import *
 from eventregistry.QueryArticles import QueryArticles, RequestArticlesInfo
@@ -34,12 +34,13 @@ class QueryEvent(Query):
         Set the single result type that you would like to be returned. Any previously set result types will be overwritten.
         Result types can be the classes that extend RequestEvent base class (see classes below).
         """
-        assert isinstance(requestEvent, RequestEvent), "QueryEvent class can only accept result requests that are of type RequestEvent"
+        if not (isinstance(requestEvent, RequestEvent)):
+            raise TypeError("QueryEvent class can only accept result requests that are of type RequestEvent")
         self.resultTypeList = [requestEvent]
 
 
 
-class QueryEventArticlesIter(QueryEvent, six.Iterator):
+class QueryEventArticlesIter(QueryEvent):
     """
     Class for obtaining an iterator over all articles in the event
     """
@@ -138,18 +139,23 @@ class QueryEventArticlesIter(QueryEvent, six.Iterator):
         self._setValIfNotDefault("keywordLoc", keywordsLoc, "body")
         self._setValIfNotDefault("keywordSearchMode", keywordSearchMode, "phrase")
 
-        assert startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100
-        assert endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100
-        assert startSourceRankPercentile < endSourceRankPercentile
+        if not (startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100):
+            raise ValueError("startSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100):
+            raise ValueError("endSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (startSourceRankPercentile < endSourceRankPercentile):
+            raise ValueError("startSourceRankPercentile should be smaller than endSourceRankPercentile")
         if startSourceRankPercentile != 0:
             self._setVal("startSourceRankPercentile", startSourceRankPercentile)
         if endSourceRankPercentile != 100:
             self._setVal("endSourceRankPercentile", endSourceRankPercentile)
         if minSentiment != -1:
-            assert minSentiment >= -1 and minSentiment <= 1
+            if not (minSentiment >= -1 and minSentiment <= 1):
+                raise ValueError("minSentiment should be a value between -1 and 1")
             self._setVal("minSentiment", minSentiment)      # e.g. -0.5
         if maxSentiment != 1:
-            assert maxSentiment >= -1 and maxSentiment <= 1
+            if not (maxSentiment >= -1 and maxSentiment <= 1):
+                raise ValueError("maxSentiment should be a value between -1 and 1")
             self._setVal("maxSentiment", maxSentiment)      # e.g. 0.5
 
 
@@ -158,8 +164,11 @@ class QueryEventArticlesIter(QueryEvent, six.Iterator):
         return the number of articles that match the criteria
         @param eventRegistry: instance of EventRegistry class. used to obtain the necessary data
         """
+        # remember the currently requested result type so that calling count() does not change the query
+        prevResultTypeList = self.resultTypeList
         self.setRequestedResult(RequestEventArticles(**self.queryParams))
         res = eventRegistry.execQuery(self)
+        self.resultTypeList = prevResultTypeList
         if "error" in res:
             logger.error(res["error"])
         count = res.get(self.queryParams["eventUri"], {}).get("articles", {}).get("totalResults", 0)
@@ -200,7 +209,7 @@ class QueryEventArticlesIter(QueryEvent, six.Iterator):
         # move to the next page to download
         self._articlePage += 1
         # if we have already obtained all pages, then exit
-        if self._totalPages != None and self._articlePage > self._totalPages:
+        if self._totalPages is not None and self._articlePage > self._totalPages:
             return
         if self._er._verboseOutput:
             logger.debug("Downloading article page %d from event %s", self._articlePage, eventUri)
@@ -220,7 +229,13 @@ class QueryEventArticlesIter(QueryEvent, six.Iterator):
 
 
     def __iter__(self):
-        # clear any past info - iterator should start from beginning
+        if not hasattr(self, "_er"):
+            raise RuntimeError("Iterating is only possible after calling the execQuery() method first")
+        # reset the paging state so that a new iteration starts from the first result again
+        self._articlePage = 0
+        self._totalPages = None
+        self._currItem = 0
+        self._articleList = []
         return self
 
 
@@ -249,12 +264,12 @@ class RequestEvent:
 
 
 class RequestEventInfo(RequestEvent):
-    def __init__(self, returnInfo: ReturnInfo = ReturnInfo()):
+    def __init__(self, returnInfo: Union[ReturnInfo, None] = None):
         """
         return details about an event
         """
         self.resultType = "info"
-        self.__dict__.update(returnInfo.getParams("info"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("info"))
 
 
 
@@ -335,8 +350,10 @@ class RequestEventArticles(RequestEvent, QueryParamsBase):
         """
         RequestEvent.__init__(self)
         QueryParamsBase.__init__(self)
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 100, "at most 100 articles can be returned per call"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 100):
+            raise ValueError("at most 100 articles can be returned per call")
         self.resultType = "articles"
         self.articlesPage = page
         self.articlesCount = count
@@ -369,9 +386,12 @@ class RequestEventArticles(RequestEvent, QueryParamsBase):
         self._setValIfNotDefault("keywordLoc", keywordsLoc, "body")
         self._setValIfNotDefault("keywordSearchMode", keywordSearchMode, "phrase")
 
-        assert startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100
-        assert endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100
-        assert startSourceRankPercentile < endSourceRankPercentile
+        if not (startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100):
+            raise ValueError("startSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100):
+            raise ValueError("endSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (startSourceRankPercentile < endSourceRankPercentile):
+            raise ValueError("startSourceRankPercentile should be smaller than endSourceRankPercentile")
         if startSourceRankPercentile != 0:
             self._setVal("startSourceRankPercentile", startSourceRankPercentile)
         if endSourceRankPercentile != 100:
@@ -399,7 +419,7 @@ class RequestEventArticleUriWgts(RequestEvent):
         @param sortByAsc: should the articles be sorted in ascending order (True) or descending (False) based on sortBy value
         @param kwds: any other potential query parameters - can be any of the parameters used in RequestEventArticles() constructor
         """
-        if lang != None:
+        if lang is not None:
             self.articlesLang = lang
         self.uriWgtListSortBy = sortBy
         self.uriWgtListSortByAsc = sortByAsc
@@ -446,7 +466,7 @@ class RequestEventArticleTrend(RequestEvent):
                  lang: Union[str, None] = None,
                  page: int = 1, count: int = 100,
                  minArticleCosSim: int = -1,
-                 returnInfo: ReturnInfo = ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = 0))):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return trending information for the articles about the event
         @param lang: languages for which to compute the trends. If None, then compute trends for all articles
@@ -455,14 +475,16 @@ class RequestEventArticleTrend(RequestEvent):
         @param minArticleCosSim: ignore articles that have cos similarity to centroid lower than the specified value (-1 for no limit)
         @param returnInfo: what details should be included in the returned information
         """
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 100, "at most 100 articles can be returned per call"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 100):
+            raise ValueError("at most 100 articles can be returned per call")
         self.resultType = "articleTrend"
         self.articlesLang = lang
         self.articleTrendPage = page
         self.articleTrendCount = count
         self.articleTrendMinArticleCosSim = minArticleCosSim
-        self.__dict__.update(returnInfo.getParams("articleTrend"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo(articleInfo = ArticleInfoFlags(bodyLen = 0))).getParams("articleTrend"))
 
 
 
@@ -474,7 +496,7 @@ class RequestEventSimilarEvents(RequestEvent):
                 dateEnd: Union[datetime.datetime, datetime.date, str, None] = None,                # what can be the newest date of the similar events
                 addArticleTrendInfo: bool = False,   # add info how the articles in the similar events are distributed over time
                 aggrHours: int = 6,                 # if similarEventsAddArticleTrendInfo == True then this is the aggregating window
-                returnInfo: ReturnInfo = ReturnInfo()):
+                returnInfo: Union[ReturnInfo, None] = None):
         """
         compute and return a list of similar events
         @param conceptInfoList: array of concepts and their importance, e.g. [{ "uri": "http://en.wikipedia.org/wiki/Barack_Obama", "wgt": 100 }, ...]
@@ -485,8 +507,10 @@ class RequestEventSimilarEvents(RequestEvent):
         @param aggrHours: time span that is used as a unit when computing the trending info
         @param returnInfo: what details should be included in the returned information
         """
-        assert count <= 50
-        assert isinstance(conceptInfoList, list)
+        if not (count <= 50):
+            raise ValueError("count should be at most 50")
+        if not (isinstance(conceptInfoList, list)):
+            raise TypeError("conceptInfoList should be of type list")
         self.action = "getSimilarEvents"
         self.concepts = json.dumps(conceptInfoList)
         self.eventsCount = count
@@ -498,4 +522,4 @@ class RequestEventSimilarEvents(RequestEvent):
         self.similarEventsAggrHours = aggrHours
         # setting resultType since we have to, but it's actually ignored on the backend
         self.resultType = "similarEvents"
-        self.__dict__.update(returnInfo.getParams(""))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams(""))

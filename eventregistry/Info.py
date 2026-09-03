@@ -5,8 +5,8 @@ from typing import Union, List
 
 class GetSourceInfo(QueryParamsBase):
     def __init__(self,
-                 uriOrUriList: Union[str, List[str]] = None,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 uriOrUriList: Union[str, List[str], None] = None,
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         obtain desired information about one or more news sources
         @param uriOrUriList: single source uri or a list of source uris for which to return information
@@ -14,9 +14,9 @@ class GetSourceInfo(QueryParamsBase):
         """
         QueryParamsBase.__init__(self)
         self._setVal("action", "getInfo")
-        if uriOrUriList != None:
+        if uriOrUriList is not None:
             self.queryByUri(uriOrUriList)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
 
 
     def queryByUri(self, uriOrUriList: Union[str, List[str]]):
@@ -36,8 +36,8 @@ class GetSourceInfo(QueryParamsBase):
 
 class GetConceptInfo(QueryParamsBase):
     def __init__(self,
-                 uriOrUriList: Union[str, List[str]] = None,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 uriOrUriList: Union[str, List[str], None] = None,
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         obtain information about concepts
         @param uriOrUriList: single concept uri or a list of concept uris for which to return information
@@ -45,9 +45,9 @@ class GetConceptInfo(QueryParamsBase):
         """
         QueryParamsBase.__init__(self)
         self._setVal("action", "getInfo")
-        if uriOrUriList != None:
+        if uriOrUriList is not None:
             self._setVal("uri", uriOrUriList)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
 
 
     def _getPath(self):
@@ -57,8 +57,8 @@ class GetConceptInfo(QueryParamsBase):
 
 class GetCategoryInfo(QueryParamsBase):
     def __init__(self,
-                 uriOrUriList: Union[str, List[str]] = None,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 uriOrUriList: Union[str, List[str], None] = None,
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         obtain information about categories
         @param uriOrUriList: single category uri or a list of category uris for which to return information
@@ -66,9 +66,9 @@ class GetCategoryInfo(QueryParamsBase):
         """
         QueryParamsBase.__init__(self)
         self._setVal("action", "getInfo")
-        if uriOrUriList != None:
+        if uriOrUriList is not None:
             self.queryByUri(uriOrUriList)
-        self._update(returnInfo.getParams())
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams())
 
 
     def queryByUri(self, uriOrUriList: Union[str, List[str]]):
@@ -82,7 +82,7 @@ class GetCategoryInfo(QueryParamsBase):
 
 
 class GetSourceStats(QueryParamsBase):
-    def __init__(self, sourceUri: Union[str, List[str]] = None):
+    def __init__(self, sourceUri: Union[str, List[str], None] = None):
         """
         get stats about one or more sources - return json object will include:
          "uri"

@@ -15,13 +15,13 @@ class GetTopSharedArticles(QueryParamsBase):
     def __init__(self,
                  date: Union[str, datetime.date, datetime.datetime, None] = None,     # specify the date (either in YYYY-MM-DD or datetime.date format) for which to return top shared articles. If None then today is used
                  count: int = 20,      # number of top shared articles to return
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         QueryParamsBase.__init__(self)
         self._setVal("action", "getArticles")
         self._setVal("resultType", "articles")
         self._setVal("articlesCount", count)
         self._setVal("articlesSortBy", "socialScore")
-        self._update(returnInfo.getParams("articles"))
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("articles"))
 
         if date is None:
             date = datetime.date.today()
@@ -38,13 +38,13 @@ class GetTopSharedEvents(QueryParamsBase):
     def __init__(self,
                  date: Union[str, datetime.date, datetime.datetime, None] = None,     # specify the date (either in YYYY-MM-DD or datetime.date format) for which to return top shared articles. If None then today is used
                  count: int = 20,                                                     # number of top shared articles to return
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         QueryParamsBase.__init__(self)
         self._setVal("action", "getEvents")
         self._setVal("resultType", "events")
         self._setVal("eventsCount", count)
         self._setVal("eventsSortBy", "socialScore")
-        self._update(returnInfo.getParams("events"))
+        self._update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("events"))
 
         if date is None:
             date = datetime.date.today()

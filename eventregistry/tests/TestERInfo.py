@@ -3,6 +3,7 @@ from eventregistry import *
 
 from eventregistry.tests.DataValidator import DataValidator
 
+
 class TestInfo(DataValidator):
     def test_sourcesByUri(self):
         sources = self.er.suggestNewsSources("a", count = 10)
@@ -14,8 +15,11 @@ class TestInfo(DataValidator):
                                          ranking = True,
                                          socialMedia = True)))
         res = self.er.execQuery(q)
-        self.assertEqual(len(res), len(sourceUriList), "Expected different number of sources")
-        for item in list(res.values()):
+        self.assertEqual(len(res), len(sourceUriList), "Expected the same number of results as the number of provided sources")
+        # some suggested sources may not be resolvable by the source info endpoint - those are reported with an "error"
+        validItems = [item for item in res.values() if "error" not in item]
+        self.assertTrue(len(validItems) > 0, "Expected at least some sources with valid info")
+        for item in validItems:
             self.assertIsNotNone(item.get("uri"), "Source uri is missing")
             self.assertIsNotNone(item.get("title"), "Source title is missing")
             self.assertIsNotNone(item.get("description"), "Source description is missing")
@@ -67,6 +71,12 @@ class TestInfo(DataValidator):
             self.assertTrue("parentUri" in item, "Category parent uri is missing")
             self.assertIsNotNone(item.get("childrenUris"), "Category children uris are missing")
 
+
+
+    def test_usageInfo(self):
+        res = self.er.getUsageInfo()
+        self.assertTrue("availableTokens" in res, "Expected 'availableTokens' in the usage info")
+        self.assertTrue("usedTokens" in res, "Expected 'usedTokens' in the usage info")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,11 @@
-﻿import six, json
+﻿import json
 from eventregistry.Base import *
 from eventregistry.ReturnInfo import *
 from eventregistry.Query import *
 from eventregistry.Logger import logger
 from eventregistry.EventRegistry import EventRegistry
 from typing import Union, List, Literal
+
 
 class QueryEvents(Query):
     def __init__(self,
@@ -105,7 +106,7 @@ class QueryEvents(Query):
 
         @param requestedResult: the information to return as the result of the query. By default return the list of matching events
         """
-        super(QueryEvents, self).__init__()
+        super().__init__()
 
         self._setVal("action", "getEvents")
 
@@ -129,10 +130,12 @@ class QueryEvents(Query):
         if reportingDateEnd is not None:
             self._setDateVal("reportingDateEnd", reportingDateEnd)            # e.g. 2014-05-02
         if minSentiment != -1:
-            assert minSentiment >= -1 and minSentiment <= 1
+            if not (minSentiment >= -1 and minSentiment <= 1):
+                raise ValueError("minSentiment should be a value between -1 and 1")
             self._setVal("minSentiment", minSentiment)      # e.g. -0.5
         if maxSentiment != 1:
-            assert maxSentiment >= -1 and maxSentiment <= 1
+            if not (maxSentiment >= -1 and maxSentiment <= 1):
+                raise ValueError("maxSentiment should be a value between -1 and 1")
             self._setVal("maxSentiment", maxSentiment)      # e.g. 0.5
 
         self._setValIfNotDefault("minArticlesInEvent", minArticlesInEvent, None)
@@ -174,7 +177,8 @@ class QueryEvents(Query):
         Set the single result type that you would like to be returned. Any previously set result types will be overwritten.
         Result types can be the classes that extend RequestEvents base class (see classes below).
         """
-        assert isinstance(requestEvents, RequestEvents), "QueryEvents class can only accept result requests that are of type RequestEvents"
+        if not (isinstance(requestEvents, RequestEvents)):
+            raise TypeError("QueryEvents class can only accept result requests that are of type RequestEvents")
         self.resultTypeList = [requestEvents]
 
 
@@ -184,8 +188,11 @@ class QueryEvents(Query):
         Set a custom list of event uris. The results will be then computed on this list - no query will be done (all conditions will be ignored).
         """
         q = QueryEvents()
-        assert isinstance(uriList, str) or isinstance(uriList, list), "uriList has to be a list of strings or a string that represent event uris"
-        q.queryParams = { "action": "getEvents", "eventUriList": ",".join(uriList) }
+        if not (isinstance(uriList, (str, list))):
+            raise TypeError("uriList has to be a list of strings or a string that represent event uris")
+        if isinstance(uriList, list):
+            uriList = ",".join(uriList)
+        q.queryParams = { "action": "getEvents", "eventUriList": uriList }
         return q
 
 
@@ -200,7 +207,7 @@ class QueryEvents(Query):
         elif isinstance(uriWgtList, str):
             q.queryParams = { "action": "getEvents", "eventUriWgtList": uriWgtList }
         else:
-            assert False, "uriWgtList parameter did not contain a list or a string"
+            raise TypeError("uriWgtList parameter did not contain a list or a string")
         return q
 
 
@@ -214,23 +221,23 @@ class QueryEvents(Query):
         if isinstance(query, ComplexEventQuery):
             q._setVal("query", json.dumps(query.getQuery()))
         # provided query as a string containing the json object
-        elif isinstance(query, six.string_types):
+        elif isinstance(query, str):
             try:
-                foo = json.loads(query)
-            except:
-                raise Exception("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
+                json.loads(query)
+            except ValueError:
+                raise ValueError("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
             q._setVal("query", query)
         # provided query as a python dict
         elif isinstance(query, dict):
             q._setVal("query", json.dumps(query))
         # unrecognized value provided
         else:
-            assert False, "The instance of query parameter was not a ComplexEventQuery, a string or a python dict"
+            raise TypeError("The instance of query parameter was not a ComplexEventQuery, a string or a python dict")
         return q
 
 
 
-class QueryEventsIter(QueryEvents, six.Iterator):
+class QueryEventsIter(QueryEvents):
     """
     class that simplifies and combines functionality from QueryEvents and RequestEventsInfo. It provides an iterator
     over the list of events that match the specified conditions
@@ -240,8 +247,11 @@ class QueryEventsIter(QueryEvents, six.Iterator):
         """
         return the number of events that match the criteria
         """
+        # remember the currently requested result type so that calling count() does not change the query
+        prevResultTypeList = self.resultTypeList
         self.setRequestedResult(RequestEventsInfo())
         res = eventRegistry.execQuery(self)
+        self.resultTypeList = prevResultTypeList
         if "error" in res:
             logger.error(res["error"])
         count = res.get("events", {}).get("totalResults", 0)
@@ -284,14 +294,17 @@ class QueryEventsIter(QueryEvents, six.Iterator):
         if isinstance(query, ComplexEventQuery):
             q._setVal("query", json.dumps(query.getQuery()))
         # provided query as a string containing the json object
-        elif isinstance(query, six.string_types):
-            foo = json.loads(query)
+        elif isinstance(query, str):
+            try:
+                json.loads(query)
+            except ValueError:
+                raise ValueError("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
             q._setVal("query", query)
         # provided query as a python dict
         elif isinstance(query, dict):
             q._setVal("query", json.dumps(query))
         else:
-            assert False, "The instance of query parameter was not a ComplexEventQuery, a string or a python dict"
+            raise TypeError("The instance of query parameter was not a ComplexEventQuery, a string or a python dict")
         return q
 
 
@@ -317,6 +330,13 @@ class QueryEventsIter(QueryEvents, six.Iterator):
 
 
     def __iter__(self):
+        if not hasattr(self, "_er"):
+            raise RuntimeError("Iterating is only possible after calling the execQuery() method first")
+        # reset the paging state so that a new iteration starts from the first result again
+        self._eventPage = 0
+        self._totalPages = None
+        self._currItem = 0
+        self._eventList = []
         return self
 
 
@@ -358,9 +378,11 @@ class RequestEventsInfo(RequestEvents):
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 50, "at most 50 events can be returned per call"
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 50):
+            raise ValueError("at most 50 events can be returned per call")
         self.resultType = "events"
         self.eventsPage = page
         self.eventsCount = count
@@ -371,7 +393,8 @@ class RequestEventsInfo(RequestEvents):
 
 
     def setPage(self, page: int):
-        assert page >= 1, "page has to be >= 1"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
         self.eventsPage = page
 
 
@@ -393,9 +416,11 @@ class RequestEventsUriWgtList(RequestEvents):
             socialScore (amount of shares in social media), none (no specific sorting)
         @param sortByAsc: should the events be sorted in ascending order (True) or descending (False)
         """
-        super(RequestEvents, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 100000
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 100000):
+            raise ValueError("count should be at most 100000")
         self.resultType = "uriWgtList"
         self.uriWgtListPage = page
         self.uriWgtListCount = count
@@ -404,7 +429,8 @@ class RequestEventsUriWgtList(RequestEvents):
 
 
     def setPage(self, page):
-        assert page >= 1, "page has to be >= 1"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
         self.uriWgtListPage = page
 
 
@@ -414,7 +440,7 @@ class RequestEventsTimeAggr(RequestEvents):
         """
         return time distribution of resulting events
         """
-        super(RequestEvents, self).__init__()
+        super().__init__()
         self.resultType = "timeAggr"
 
 
@@ -425,7 +451,7 @@ class RequestEventsKeywordAggr(RequestEvents):
         return keyword aggregate (tag cloud) on words in articles in resulting events
         @param lang: in which language to produce the list of top keywords. If None, then compute on all articles
         """
-        super(RequestEvents, self).__init__()
+        super().__init__()
         self.resultType = "keywordAggr"
         if lang is not None:
             self.keywordAggrLang = lang
@@ -435,17 +461,18 @@ class RequestEventsKeywordAggr(RequestEvents):
 class RequestEventsLocAggr(RequestEvents):
     def __init__(self,
                  eventsSampleSize: int = 100000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return aggreate of locations of resulting events
         @param eventsSampleSize: sample of events to use to compute the location aggregate (at most 100000)
         @param returnInfo: what details (about locations) should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert eventsSampleSize <= 100000
+        super().__init__()
+        if not (eventsSampleSize <= 100000):
+            raise ValueError("eventsSampleSize should be at most 100000")
         self.resultType = "locAggr"
         self.locAggrSampleSize = eventsSampleSize
-        self.__dict__.update(returnInfo.getParams("locAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("locAggr"))
 
 
 
@@ -453,17 +480,18 @@ class RequestEventsLocTimeAggr(RequestEvents):
 
     def __init__(self,
                  eventsSampleSize: int = 100000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return aggreate of locations and times of resulting events
         @param eventsSampleSize: sample of events to use to compute the location aggregate (at most 100000)
         @param returnInfo: what details (about locations) should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert eventsSampleSize <= 100000
+        super().__init__()
+        if not (eventsSampleSize <= 100000):
+            raise ValueError("eventsSampleSize should be at most 100000")
         self.resultType = "locTimeAggr"
         self.locTimeAggrSampleSize = eventsSampleSize
-        self.__dict__.update(returnInfo.getParams("locTimeAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("locTimeAggr"))
 
 
 
@@ -471,20 +499,22 @@ class RequestEventsConceptAggr(RequestEvents):
     def __init__(self,
                  conceptCount: int = 20,
                  eventsSampleSize: int = 100000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         compute which concept are the most frequently occuring in the list of resulting events
         @param conceptCount: number of top concepts to return (at most 200)
         @param eventsSampleSize: on what sample of results should the aggregate be computed (at most 1000000)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert conceptCount <= 200
-        assert eventsSampleSize <= 1000000
+        super().__init__()
+        if not (conceptCount <= 200):
+            raise ValueError("conceptCount should be at most 200")
+        if not (eventsSampleSize <= 1000000):
+            raise ValueError("eventsSampleSize should be at most 1000000")
         self.resultType = "conceptAggr"
         self.conceptAggrConceptCount = conceptCount
         self.conceptAggrSampleSize = eventsSampleSize
-        self.__dict__.update(returnInfo.getParams("conceptAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptAggr"))
 
 
 
@@ -493,7 +523,7 @@ class RequestEventsConceptGraph(RequestEvents):
                  conceptCount: int = 50,
                  linkCount: int = 150,
                  eventsSampleSize: int = 50000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         compute which concept pairs frequently co-occur together in the resulting events
         @param conceptCount: number of top concepts to return (at most 1,000)
@@ -501,15 +531,18 @@ class RequestEventsConceptGraph(RequestEvents):
         @param eventsSampleSize: on what sample of results should the aggregate be computed (at most 100000)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert conceptCount <= 1000
-        assert linkCount <= 2000
-        assert eventsSampleSize <= 300000
+        super().__init__()
+        if not (conceptCount <= 1000):
+            raise ValueError("conceptCount should be at most 1000")
+        if not (linkCount <= 2000):
+            raise ValueError("linkCount should be at most 2000")
+        if not (eventsSampleSize <= 300000):
+            raise ValueError("eventsSampleSize should be at most 300000")
         self.resultType = "conceptGraph"
         self.conceptGraphConceptCount = conceptCount
         self.conceptGraphLinkCount = linkCount
         self.conceptGraphSampleSize = eventsSampleSize
-        self.__dict__.update(returnInfo.getParams("conceptGraph"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptGraph"))
 
 
 
@@ -518,7 +551,7 @@ class RequestEventsConceptMatrix(RequestEvents):
                  conceptCount: int = 25,
                  measure: str = "pmi",
                  eventsSampleSize: int = 100000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get a matrix of concepts and their dependencies. For individual concept pairs
         return how frequently they co-occur in the resulting events and
@@ -528,14 +561,16 @@ class RequestEventsConceptMatrix(RequestEvents):
         @param eventsSampleSize: on what sample of results should the aggregate be computed (at most 300000)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert conceptCount <= 200
-        assert eventsSampleSize <= 300000
+        super().__init__()
+        if not (conceptCount <= 200):
+            raise ValueError("conceptCount should be at most 200")
+        if not (eventsSampleSize <= 300000):
+            raise ValueError("eventsSampleSize should be at most 300000")
         self.resultType = "conceptMatrix"
         self.conceptMatrixConceptCount = conceptCount
         self.conceptMatrixMeasure = measure
         self.conceptMatrixSampleSize = eventsSampleSize
-        self.__dict__.update(returnInfo.getParams("conceptMatrix"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptMatrix"))
 
 
 
@@ -543,20 +578,21 @@ class RequestEventsConceptTrends(RequestEvents):
     def __init__(self,
                  conceptUris: Union[str, List[str], None] = None,
                  conceptCount: int = 10,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return a list of top trending concepts and their daily trending info over time
         @param conceptUris: list of concept URIs for which to return trending information. If None, then top concepts will be automatically computed
         @param count: if the concepts are not provided, what should be the number of automatically determined concepts to return (at most 50)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert conceptCount <= 50
+        super().__init__()
+        if not (conceptCount <= 50):
+            raise ValueError("conceptCount should be at most 50")
         self.resultType = "conceptTrends"
         if conceptUris is not None:
             self.conceptTrendsConceptUri = conceptUris
         self.conceptTrendsConceptCount = conceptCount
-        self.__dict__.update(returnInfo.getParams("conceptTrends"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptTrends"))
 
 
 
@@ -564,20 +600,22 @@ class RequestEventsSourceAggr(RequestEvents):
     def __init__(self,
                  sourceCount: int = 30,
                  eventsSampleSize: int = 50000,
-                 returnInfo : ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return top news sources that report about the events that match the search conditions
         @param sourceCount: number of top sources to return (at most 200)
         @param eventsSampleSize: on what sample of results should the aggregate be computed (at most 300000)
         @param returnInfo: what details about the sources should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert sourceCount <= 200
-        assert eventsSampleSize <= 100000
+        super().__init__()
+        if not (sourceCount <= 200):
+            raise ValueError("sourceCount should be at most 200")
+        if not (eventsSampleSize <= 100000):
+            raise ValueError("eventsSampleSize should be at most 100000")
         self.resultType = "sourceAggr"
         self.sourceAggrSourceCount = sourceCount
         self.sourceAggrSampleSize = eventsSampleSize
-        self.__dict__.update(returnInfo.getParams("sourceAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("sourceAggr"))
 
 
 
@@ -592,8 +630,9 @@ class RequestEventsDateMentionAggr(RequestEvents):
         @param minDateMentionCount: report only dates that are mentioned at least this number of times
         @param eventsSampleSize: on what sample of results should the aggregate be computed (at most 300000)
         """
-        super(RequestEvents, self).__init__()
-        assert eventsSampleSize <= 300000
+        super().__init__()
+        if not (eventsSampleSize <= 300000):
+            raise ValueError("eventsSampleSize should be at most 300000")
         self.resultType = "dateMentionAggr"
         self.dateMentionAggrMinDaysApart = minDaysApart
         self.dateMentionAggrMinDateMentionCount = minDateMentionCount
@@ -601,37 +640,16 @@ class RequestEventsDateMentionAggr(RequestEvents):
 
 
 
-class RequestEventsEventClusters(RequestEvents):
-    def __init__(self,
-                 keywordCount: int = 30,
-                 maxEventsToCluster: int = 10000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
-        """
-        return hierarchical clustering of events into smaller clusters. 2-means clustering is applied on each node in the tree
-        @param keywordCount: number of keywords to report in each of the clusters (at most 100)
-        @param maxEventsToCluster: try to cluster at most this number of events (at most 10000)
-        @param returnInfo: what details about the concepts should be included in the returned information
-        """
-        super(RequestEvents, self).__init__()
-        assert keywordCount <= 100
-        assert maxEventsToCluster <= 10000
-        self.resultType = "eventClusters"
-        self.eventClustersKeywordCount = keywordCount
-        self.eventClustersMaxEventsToCluster = maxEventsToCluster
-        self.__dict__.update(returnInfo.getParams("eventClusters"))
-
-
-
 class RequestEventsCategoryAggr(RequestEvents):
     def __init__(self,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return distribution of events into dmoz categories
         @param returnInfo: what details about the categories should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
+        super().__init__()
         self.resultType = "categoryAggr"
-        self.__dict__.update(returnInfo.getParams("categoryAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("categoryAggr"))
 
 
 
@@ -652,9 +670,11 @@ class RequestEventsRecentActivity(RequestEvents):
         @param minAvgCosSim: the minimum avg cos sim of the events to be returned (events with lower quality should not be included)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert maxEventCount <= 2000
-        assert updatesAfterTm is None or updatesAfterMinsAgo is None, "You should specify either updatesAfterTm or updatesAfterMinsAgo parameter, but not both"
+        super().__init__()
+        if not (maxEventCount <= 2000):
+            raise ValueError("maxEventCount should be at most 2000")
+        if not (updatesAfterTm is None or updatesAfterMinsAgo is None):
+            raise ValueError("You should specify either updatesAfterTm or updatesAfterMinsAgo parameter, but not both")
         self.resultType = "recentActivityEvents"
         self.recentActivityEventsMaxEventCount = maxEventCount
         self.recentActivityEventsMandatoryLocation = mandatoryLocation
@@ -675,14 +695,16 @@ class RequestEventsBreakingEvents(RequestEvents):
                  returnInfo: Union[ReturnInfo, None] = None):
         """
         return a list of events that are currently breaking
-        @param page: max events to return (at most 50)
+        @param page: page of the results to return (starting from 1)
         @param count: max events to return (at most 50)
         @param minBreakingScore: the minimum score of "breakingness" of the events to be returned
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestEvents, self).__init__()
-        assert page >= 1
-        assert count <= 50
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page should be at least 1")
+        if not (count <= 50):
+            raise ValueError("count should be at most 50")
         self.resultType = "breakingEvents"
         self.breakingEventsPage = page
         self.breakingEventsCount = count

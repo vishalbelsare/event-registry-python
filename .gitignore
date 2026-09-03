@@ -50,3 +50,6 @@ target/
 /.vs/EventRegistryAPI/v14/*.suo
 /*.user
 /eventregistry/requests_log.txt
+
+# Editor settings
+/.vscode/

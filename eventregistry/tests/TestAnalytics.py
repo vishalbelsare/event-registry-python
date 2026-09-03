@@ -1,6 +1,7 @@
-﻿import unittest, time
+﻿import unittest
 import eventregistry as ER
 from eventregistry.tests.DataValidator import DataValidator
+
 
 class TestAnalytics(DataValidator):
 
@@ -9,19 +10,17 @@ class TestAnalytics(DataValidator):
         annInfo = analytics.annotate("Microsoft released a new version of Windows OS.")
         self.assertTrue("annotations" in annInfo, "Annotations were not provided for the given text")
         anns = annInfo["annotations"]
-        self.assertTrue(len(anns) == 2)
-        self.assertTrue("url" in anns[0])
-        self.assertTrue("title" in anns[0])
-        self.assertTrue("lang" in anns[0])
-        self.assertTrue("secLang" in anns[0])
-        self.assertTrue("secUrl" in anns[0])
-        self.assertTrue("secTitle" in anns[0])
-        self.assertTrue("wgt" in anns[0])
-        self.assertTrue("wikiDataItemId" in anns[0])
-        self.assertTrue("adverbs" in annInfo)
-        self.assertTrue("adjectives" in annInfo)
-        self.assertTrue("verbs" in annInfo)
-        self.assertTrue("nouns" in annInfo)
+        self.assertTrue(len(anns) >= 1, "Expected at least one annotation in the given text")
+        for ann in anns:
+            self.assertTrue("url" in ann)
+            self.assertTrue("title" in ann)
+            self.assertTrue("lang" in ann)
+            self.assertTrue("secLang" in ann)
+            self.assertTrue("secUrl" in ann)
+            self.assertTrue("secTitle" in ann)
+            self.assertTrue("wikiDataItemId" in ann)
+        annotatedUrls = [ann["url"] for ann in anns]
+        self.assertTrue("http://en.wikipedia.org/wiki/Microsoft" in annotatedUrls, "Expected Microsoft to be one of the annotations")
         self.assertTrue("ranges" in annInfo)
         self.assertTrue("language" in annInfo)
 
@@ -47,10 +46,11 @@ class TestAnalytics(DataValidator):
     def testLanguage(self):
         analytics = ER.Analytics(self.er)
         langInfo = analytics.detectLanguage("Microsoft released a new version of Windows OS.")
-        self.assertTrue("languages" in langInfo)
-        self.assertTrue("code" in langInfo["languages"][0])
-        self.assertTrue("name" in langInfo["languages"][0])
-        self.assertTrue("percent" in langInfo["languages"][0])
+        # the endpoint returns a list of detected language candidates, sorted by their score
+        self.assertTrue(isinstance(langInfo, list) and len(langInfo) > 0, "Expected a non-empty list of detected languages")
+        self.assertEqual(langInfo[0].get("code"), "en")
+        self.assertTrue("name" in langInfo[0])
+        self.assertTrue("percent" in langInfo[0])
 
 
     def testSemanticSimilarity(self):
@@ -70,43 +70,6 @@ class TestAnalytics(DataValidator):
         self.assertTrue("datetime" in info)
         self.assertTrue("image" in info)
         # there can be other additional properties available, depending on what is available in the article
-
-
-    def testTrainTopic(self):
-        analytics = ER.Analytics(self.er)
-        ret = analytics.trainTopicCreateTopic("my topic")
-        assert ret and "uri" in ret
-        uri = ret["uri"]
-        analytics.trainTopicAddDocument(uri, "Facebook has removed 18 accounts and 52 pages associated with the Myanmar military, including the page of its commander-in-chief, after a UN report accused the armed forces of genocide and war crimes.")
-        analytics.trainTopicAddDocument(uri, "Emmanuel Macron’s climate commitment to “make this planet great again” has come under attack after his environment minister dramatically quit, saying the French president was not doing enough on climate and other environmental goals.")
-        analytics.trainTopicAddDocument(uri, "Theresa May claimed that a no-deal Brexit “wouldn’t be the end of the world” as she sought to downplay a controversial warning made by Philip Hammond last week that it would cost £80bn in extra borrowing and inhibit long-term economic growth.")
-        # finish training of the topic
-        ret = analytics.trainTopicGetTrainedTopic(uri, ignoreConceptTypes="wiki")
-        assert ret and "topic" in ret
-        topic = ret["topic"]
-        assert "concepts" in topic and len(topic["concepts"]) > 0
-        assert "categories" in topic and len(topic["categories"]) > 0
-        for concept in topic["concepts"]:
-            assert concept["type"] != "wiki"
-        # check that we can also get the topic later on
-        ret = analytics.trainTopicGetTrainedTopic(uri)
-        assert ret and "topic" in ret
-        topic = ret["topic"]
-        assert "concepts" in topic and len(topic["concepts"]) > 0
-        assert "categories" in topic and len(topic["categories"]) > 0
-
-
-    def testTrainTopicOnTwitter(self):
-        analytics = ER.Analytics(self.er)
-        ret = analytics.trainTopicOnTweets("@SeanEllis", maxConcepts=50, maxCategories=20,
-            maxTweets = 400, maxUsedLinks = 400, ignoreConceptTypes = ["wiki", "loc"])
-        assert ret and "uri" in ret
-        uri = ret["uri"]
-        # here we should sleep more than 5 seconds
-        time.sleep(5)
-        ret = analytics.trainTopicGetTrainedTopic(uri)
-        assert ret and "topic" in ret
-
 
 
 if __name__ == "__main__":

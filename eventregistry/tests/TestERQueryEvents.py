@@ -2,12 +2,15 @@
 from eventregistry import *
 from eventregistry.tests.DataValidator import DataValidator
 
+
 class TestQueryEvents(DataValidator):
     def validateGeneralEventList(self, res):
         self.assertIsNotNone(res.get("events"), "Expected to get 'events'")
 
+        totalResults = res.get("events").get("totalResults", 0)
         events = res.get("events").get("results")
-        self.assertEqual(len(events), 10, "Expected to get 10 events but got %d" % (len(events)))
+        # a page contains 10 events, unless the query matches fewer results overall
+        self.assertEqual(len(events), min(10, totalResults), "Expected to get %d events but got %d" % (min(10, totalResults), len(events)))
         for event in events:
             self.ensureValidEvent(event, "eventList")
 
@@ -28,13 +31,13 @@ class TestQueryEvents(DataValidator):
     #
 
     def testEventListWithKeywordSearch(self):
-        q = QueryEvents(keywords="germany")
+        q = QueryEvents(keywords="germany", dateStart=self.daysAgo(20), dateEnd=self.daysAgo(2))
         q.setRequestedResult(RequestEventsInfo(count = 10, returnInfo = self.returnInfo))
         res = self.er.execQuery(q)
         self.validateGeneralEventList(res)
 
         q2 = QueryEvents.initWithComplexQuery(ComplexEventQuery(
-            BaseQuery(keyword = "germany")))
+            BaseQuery(keyword = "germany", dateStart = self.daysAgo(20), dateEnd = self.daysAgo(2))))
         q2.setRequestedResult(RequestEventsInfo(count = 10, returnInfo = self.returnInfo))
         res2 = self.er.execQuery(q2)
         self.validateGeneralEventList(res2)
@@ -43,13 +46,13 @@ class TestQueryEvents(DataValidator):
 
 
     def testEventListWithSourceSearch(self):
-        q = QueryEvents(sourceUri = self.er.getNewsSourceUri("bbc"))
+        q = QueryEvents(sourceUri = self.er.getNewsSourceUri("bbc"), dateStart=self.daysAgo(20), dateEnd=self.daysAgo(2))
         q.setRequestedResult(RequestEventsInfo(count = 10, returnInfo = self.returnInfo))
         res = self.er.execQuery(q)
         self.validateGeneralEventList(res)
 
         q2 = QueryEvents.initWithComplexQuery(ComplexEventQuery(
-            BaseQuery(sourceUri = self.er.getNewsSourceUri("bbc"))))
+            BaseQuery(sourceUri = self.er.getNewsSourceUri("bbc"), dateStart = self.daysAgo(20), dateEnd = self.daysAgo(2))))
         q2.setRequestedResult(RequestEventsInfo(count = 10, returnInfo = self.returnInfo))
         res2 = self.er.execQuery(q2)
         self.validateGeneralEventList(res2)
@@ -157,7 +160,7 @@ class TestQueryEvents(DataValidator):
         res = self.er.execQuery(q)
         obj = createStructFromDict(res)
 
-        self.assertTrue(hasattr(obj, "conceptTrends"), "Results should contain conceptAggr")
+        self.assertTrue(hasattr(obj, "conceptTrends"), "Results should contain conceptTrends")
 
         for concept in obj.conceptTrends.conceptInfo:
             self.assertTrue(concept.type == "loc" or concept.type == "org", "Got concept of invalid type")
@@ -213,7 +216,8 @@ class TestQueryEvents(DataValidator):
             self.assertTrue("date" in trend, "A trend should have a date")
             self.assertTrue("conceptFreq" in trend, "A trend should have a conceptFreq")
             self.assertTrue("totArts" in trend, "A trend should have a totArts property")
-            self.assertTrue(len(trend.get("conceptFreq")), "Concept frequencies should contain 5 elements - one for each concept")
+            # the api can pad the conceptFreq array to the requested concept count, so it can be longer than conceptInfo
+            self.assertTrue(len(trend.get("conceptFreq")) >= len(res["conceptTrends"]["conceptInfo"]), "Concept frequencies should contain an entry for each returned concept")
         for concept in res.get("conceptTrends").get("conceptInfo"):
             self.ensureValidConcept(concept, "conceptTrends")
 
@@ -286,8 +290,66 @@ class TestQueryEvents(DataValidator):
 
         countries = res.get("sourceAggr", {}).get("countsPerCountry")
         for country in countries:
+            # sources with an unknown location are reported in a single item with an empty uri - skip it
+            if not country.get("uri"):
+                continue
             self.assertTrue(country.get("type") == "loc", "Country should be a location")
             self.assertTrue(country.get("frequency") > 0)
+
+
+    def testTimeAggr(self):
+        q = self.createQuery()
+        q.setRequestedResult(RequestEventsTimeAggr())
+        res = self.er.execQuery(q)
+
+        self.assertIsNotNone(res.get("timeAggr"), "Expected to get 'timeAggr'")
+        results = res.get("timeAggr").get("results")
+        self.assertTrue(len(results) > 0, "Expected a non-empty time distribution")
+        for item in results:
+            self.assertTrue("date" in item, "Each time aggregate item should have a date")
+            self.assertTrue("count" in item, "Each time aggregate item should have a count")
+
+
+    def testLocAggr(self):
+        q = self.createQuery()
+        q.setRequestedResult(RequestEventsLocAggr(returnInfo = self.returnInfo))
+        res = self.er.execQuery(q)
+
+        self.assertIsNotNone(res.get("locAggr"), "Expected to get 'locAggr'")
+        results = res.get("locAggr").get("results")
+        self.assertTrue(len(results) > 0, "Expected a non-empty location aggregate")
+        for item in results:
+            self.assertTrue("concept" in item, "Each location aggregate item should have a concept")
+            self.assertTrue("count" in item, "Each location aggregate item should have a count")
+            self.assertEqual(item["concept"].get("type"), "loc", "The location aggregate should contain location concepts")
+
+
+    def testBreakingEvents(self):
+        q = QueryEvents(categoryUri = "news/Business", lang = "eng")
+        q.setRequestedResult(RequestEventsBreakingEvents(count = 20))
+        res = self.er.execQuery(q)
+
+        self.assertIsNotNone(res.get("breakingEvents"), "Expected to get 'breakingEvents'")
+        events = res.get("breakingEvents").get("results")
+        self.assertTrue(len(events) > 0, "Expected to get some breaking events")
+        for event in events:
+            self.assertTrue("uri" in event, "A breaking event should have an uri")
+            self.assertTrue("breakingScore" in event, "A breaking event should have a breakingScore")
+
+
+    def testRecentActivity(self):
+        q = QueryEvents(conceptUri = self.er.getConceptUri("Trump"))
+        q.setRequestedResult(RequestEventsRecentActivity(maxEventCount = 20, mandatoryLocation = False))
+        res = self.er.execQuery(q)
+
+        activity = res.get("recentActivityEvents")
+        self.assertIsNotNone(activity, "Expected to get 'recentActivityEvents'")
+        self.assertTrue("newestUpdate" in activity, "Expected a 'newestUpdate' property")
+        uris = activity.get("activity", [])
+        self.assertTrue(len(uris) > 0, "Expected some recently updated events")
+        eventInfo = activity.get("eventInfo", {})
+        for uri in uris:
+            self.assertTrue(uri in eventInfo, "Each activity uri should have a matching entry in eventInfo")
 
 
     def testSearchBySource(self):
@@ -304,14 +366,14 @@ class TestQueryEvents(DataValidator):
             returnInfo = ReturnInfo(
                 conceptInfo = ConceptInfoFlags(lang = "deu", type = "wiki"),
                 eventInfo = EventInfoFlags(concepts = True, articleCounts = True, title = True, summary = True, categories = True, location = True, stories = True, imageCount = 1)
-                )))   # return event details for first 100 events
+                )))   # return event details for first 50 events
         res = self.er.execQuery(q)
         obj = createStructFromDict(res)
 
         self.assertTrue(hasattr(obj, "events"), "Results should contain events")
 
         lastArtCount = 0
-        self.assertTrue(len(obj.events.results) <= 100, "Returned list of events was too long")
+        self.assertTrue(len(obj.events.results) <= 50, "Returned list of events was too long")
 
         for event in obj.events.results:
             self.assertTrue(hasattr(event, "articleCounts"), "Event should contain articleCounts")
@@ -354,7 +416,8 @@ class TestQueryEvents(DataValidator):
         iter = QueryEventsIter(keywords = "germany", conceptUri = obamaUri)
         eventCount = iter.count(self.er)
         events = list(iter.execQuery(self.er, returnInfo = self.returnInfo))
-        self.assertTrue(eventCount == len(events), "Event iterator did not generate the full list of events")
+        # the count and the iterated results come from separate requests and the (non-archive) data is continuously updated
+        self.assertCountsClose(eventCount, len(events), "Event iterator did not generate the full list of events")
 
 
     def testQuery1(self):

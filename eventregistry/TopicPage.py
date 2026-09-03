@@ -3,7 +3,8 @@ class that provides the ability to use topic pages (monitoring functionality)
 through the API
 """
 
-import six, json
+import os
+import json
 from eventregistry.Base import *
 from eventregistry.ReturnInfo import *
 from eventregistry.EventRegistry import EventRegistry
@@ -20,7 +21,7 @@ class TopicPages(QueryParamsBase):
 
         @param eventRegistry: instance of class EventRegistry
         """
-        super(QueryParamsBase, self).__init__()
+        super().__init__()
         self.eventRegistry = eventRegistry
 
 
@@ -40,7 +41,7 @@ class TopicPage(QueryParamsBase):
 
         @param eventRegistry: instance of class EventRegistry
         """
-        super(QueryParamsBase, self).__init__()
+        super().__init__()
         self.eventRegistry = eventRegistry
         # topic page definition
         self.topicPage = self._createEmptyTopicPage()
@@ -97,7 +98,8 @@ class TopicPage(QueryParamsBase):
         """
         load the topic page definition from a python dictionary
         """
-        assert isinstance(definitionDict, dict)
+        if not (isinstance(definitionDict, dict)):
+            raise TypeError("definitionDict should be of type dict")
         self.topicPage = definitionDict
 
 
@@ -105,9 +107,10 @@ class TopicPage(QueryParamsBase):
         """
         load topic page from an existing file
         """
-        assert os.path.exists(fname)
-        f = open(fname, "r", encoding="utf-8")
-        self.topicPage = json.load(f)
+        if not (os.path.exists(fname)):
+            raise FileNotFoundError(f"file {fname} does not exist")
+        with open(fname, "r", encoding="utf-8") as f:
+            self.topicPage = json.load(f)
 
 
     def saveTopicPageDefinition(self):
@@ -121,7 +124,8 @@ class TopicPage(QueryParamsBase):
         """
         save the topic page definition to a file
         """
-        open(fname, "w", encoding="utf-8").write(json.dumps(self.topicPage, indent = 4, sort_keys = True))
+        with open(fname, "w", encoding="utf-8") as f:
+            f.write(json.dumps(self.topicPage, indent = 4, sort_keys = True))
 
     #
     # methods for adding filters to the topic
@@ -132,8 +136,10 @@ class TopicPage(QueryParamsBase):
         what is the minimum total weight that an article has to have in order to get it among the results?
         @param value: threshold to use
         """
-        assert isinstance(value, int)
-        assert value >= 0
+        if not (isinstance(value, int)):
+            raise TypeError("value should be of type int")
+        if not (value >= 0):
+            raise ValueError("value should be at least 0")
         self.topicPage["articleTreshWgt"] = value
 
 
@@ -142,8 +148,10 @@ class TopicPage(QueryParamsBase):
         what is the minimum total weight that an event has to have in order to get it among the results?
         @param value: threshold to use
         """
-        assert isinstance(value, int)
-        assert value >= 0
+        if not (isinstance(value, int)):
+            raise TypeError("value should be of type int")
+        if not (value >= 0):
+            raise ValueError("value should be at least 0")
         self.topicPage["eventTreshWgt"] = value
 
 
@@ -154,8 +162,9 @@ class TopicPage(QueryParamsBase):
             "keepOnlyDuplicates" (return only the duplicate articles)
             "keepAll" (no filtering, default)
         """
-        assert value == "skipDuplicates" or value == "keepOnlyDuplicates" or value == "keepAll"
-        self.topicPage["isDuplicateFilter"] = value
+        if not (value == "skipDuplicates" or value == "keepOnlyDuplicates" or value == "keepAll"):
+            raise ValueError("value should be one of: skipDuplicates, keepOnlyDuplicates, keepAll")
+        self.topicPage["articleIsDuplicate"] = value
 
 
     def setArticleHasEventFilter(self, value: str):
@@ -166,7 +175,8 @@ class TopicPage(QueryParamsBase):
             "keepOnlyArticlesWithoutEvent" (return only the articles that are not describing any known event in ER)
             "keepAll" (no filtering, default)
         """
-        assert value == "skipArticlesWithoutEvent" or value == "keepOnlyArticlesWithoutEvent" or value == "keepAll"
+        if not (value == "skipArticlesWithoutEvent" or value == "keepOnlyArticlesWithoutEvent" or value == "keepAll"):
+            raise ValueError("value should be one of: skipArticlesWithoutEvent, keepOnlyArticlesWithoutEvent, keepAll")
         self.topicPage["articleHasEvent"] = value
 
 
@@ -177,7 +187,8 @@ class TopicPage(QueryParamsBase):
             "keepOnlyHasDuplicates" (return only the articles that have been later copied by others)
             "keepAll" (no filtering, default)
         """
-        assert value == "skipHasDuplicates" or value == "keepOnlyHasDuplicates" or value == "keepAll"
+        if not (value == "skipHasDuplicates" or value == "keepOnlyHasDuplicates" or value == "keepAll"):
+            raise ValueError("value should be one of: skipHasDuplicates, keepOnlyHasDuplicates, keepAll")
         self.topicPage["articleHasDuplicate"] = value
 
 
@@ -193,17 +204,24 @@ class TopicPage(QueryParamsBase):
         """
         what is the maximum allowed age of the results?
         """
-        assert isinstance(maxDaysBack, int), "maxDaysBack value has to be a positive integer"
-        assert maxDaysBack >= 1
+        if not (isinstance(maxDaysBack, int)):
+            raise TypeError("maxDaysBack value has to be a positive integer")
+        if not (maxDaysBack >= 1):
+            raise ValueError("maxDaysBack should be at least 1")
         self.topicPage["maxDaysBack"] = maxDaysBack
 
 
     def setSourceRankPercentile(self, startPercentile: int = 0, endPercentile: int = 100):
-        assert startPercentile >= 0 and startPercentile <= 90, "startPercentile is out of valid values (0 - 90)"
-        assert endPercentile >= 10 and endPercentile <= 100, "endPercentile is out of valid values (10 - 100)"
-        assert startPercentile < endPercentile, "startPercentile has to be smaller than endPercentile"
-        assert startPercentile % 10 == 0, "startPecentile has to be a multiple of 10"
-        assert endPercentile % 10 == 0, "endPercentile has to be a multiple of 10"
+        if not (startPercentile >= 0 and startPercentile <= 90):
+            raise ValueError("startPercentile is out of valid values (0 - 90)")
+        if not (endPercentile >= 10 and endPercentile <= 100):
+            raise ValueError("endPercentile is out of valid values (10 - 100)")
+        if not (startPercentile < endPercentile):
+            raise ValueError("startPercentile has to be smaller than endPercentile")
+        if not (startPercentile % 10 == 0):
+            raise ValueError("startPecentile has to be a multiple of 10")
+        if not (endPercentile % 10 == 0):
+            raise ValueError("endPercentile has to be a multiple of 10")
         self.topicPage["startSourceRankPercentile"] = startPercentile
         self.topicPage["endSourceRankPercentile"] = endPercentile
 
@@ -212,8 +230,10 @@ class TopicPage(QueryParamsBase):
         """
         what should be the sentiment of the returned articles and events?
         """
-        assert minSentiment >= -1, "minSentiment has to be >= -1"
-        assert maxSentiment <= 1, "maxSentiment has to be <= 1"
+        if not (minSentiment >= -1):
+            raise ValueError("minSentiment has to be >= -1")
+        if not (maxSentiment <= 1):
+            raise ValueError("maxSentiment has to be <= 1")
         self.topicPage["minSentiment"] = minSentiment
         self.topicPage["maxSentiment"] = maxSentiment
 
@@ -254,8 +274,14 @@ class TopicPage(QueryParamsBase):
         @param required: if true, then all results will HAVE TO be annotated with this concept
         @param excluded: if true, then all results annotated with this concept will be ignored
         """
-        assert isinstance(weight, (float, int)), "weight value has to be a positive or negative integer"
-        assert not (required is True and excluded is True), "Parameters required and excluded can not be True at the same time"
+        if not (isinstance(weight, (float, int))):
+            raise TypeError("weight value has to be a positive or negative integer")
+        if not (isinstance(conceptUri, str)):
+            raise TypeError("conceptUri has to be a string")
+        if not (len(conceptUri) > 0):
+            raise ValueError("conceptUri can not be an empty string")
+        if not (not (required is True and excluded is True)):
+            raise ValueError("Parameters required and excluded can not be True at the same time")
         concept = {"uri": conceptUri, "wgt": weight, "required": required, "excluded": excluded }
         if label is not None:
             concept["label"] = label
@@ -272,8 +298,14 @@ class TopicPage(QueryParamsBase):
         @param required: if true, then all results will HAVE TO mention this keyword to appear in the results
         @param excluded: if true, then no results that mention this keyword will be returned
         """
-        assert isinstance(weight, (float, int)), "weight value has to be a positive or negative integer"
-        assert not (required is True and excluded is True), "Parameters required and excluded can not be True at the same time"
+        if not (isinstance(weight, (float, int))):
+            raise TypeError("weight value has to be a positive or negative integer")
+        if not (isinstance(keyword, str)):
+            raise TypeError("keyword has to be a string")
+        if not (len(keyword) > 0):
+            raise ValueError("keyword can not be an empty string")
+        if not (not (required is True and excluded is True)):
+            raise ValueError("Parameters required and excluded can not be True at the same time")
         self.topicPage["keywords"].append({"keyword": keyword, "wgt": weight, "required": required, "excluded": excluded })
 
 
@@ -285,8 +317,14 @@ class TopicPage(QueryParamsBase):
         @param required: if true, then all results will HAVE TO be annotated with this category to appear in the results
         @param excluded: if true, then no results with this category will be returned
         """
-        assert isinstance(weight, (float, int)), "weight value has to be a positive or negative integer"
-        assert not (required is True and excluded is True), "Parameters required and excluded can not be True at the same time"
+        if not (isinstance(weight, (float, int))):
+            raise TypeError("weight value has to be a positive or negative integer")
+        if not (isinstance(categoryUri, str)):
+            raise TypeError("categoryUri has to be a string")
+        if not (len(categoryUri) > 0):
+            raise ValueError("categoryUri can not be an empty string")
+        if not (not (required is True and excluded is True)):
+            raise ValueError("Parameters required and excluded can not be True at the same time")
         self.topicPage["categories"].append({"uri": categoryUri, "wgt": weight, "required": required, "excluded": excluded })
 
 
@@ -297,7 +335,12 @@ class TopicPage(QueryParamsBase):
         @param weight: importance of the news source (typically in range 1 - 50)
         @param excluded: if true, then the results from these sources will be ignored
         """
-        assert isinstance(weight, (float, int)), "weight value has to be a positive or negative integer"
+        if not (isinstance(weight, (float, int))):
+            raise TypeError("weight value has to be a positive or negative integer")
+        if not (isinstance(sourceUri, str)):
+            raise TypeError("sourceUri has to be a string")
+        if not (len(sourceUri) > 0):
+            raise ValueError("sourceUri can not be an empty string")
         self.topicPage["sources"].append({"uri": sourceUri, "wgt": weight, "excluded": excluded })
 
 
@@ -308,7 +351,12 @@ class TopicPage(QueryParamsBase):
         @param weight: importance of the provided list of sources (typically in range 1 - 50)
         @param excluded: if true, then the results from the sources from this location will be ignored
         """
-        assert isinstance(weight, (float, int)), "weight value has to be a positive or negative integer"
+        if not (isinstance(weight, (float, int))):
+            raise TypeError("weight value has to be a positive or negative integer")
+        if not (isinstance(sourceLocationUri, str)):
+            raise TypeError("sourceLocationUri has to be a string")
+        if not (len(sourceLocationUri) > 0):
+            raise ValueError("sourceLocationUri can not be an empty string")
         self.topicPage["sourceLocations"].append({"uri": sourceLocationUri, "wgt": weight, "excluded": excluded })
 
 
@@ -319,7 +367,12 @@ class TopicPage(QueryParamsBase):
         @param weight: importance of the provided list of sources (typically in range 1 - 50)
         @param excluded: if true, then the results from sources from this group will be ignored
         """
-        assert isinstance(weight, (float, int)), "weight value has to be a positive or negative integer"
+        if not (isinstance(weight, (float, int))):
+            raise TypeError("weight value has to be a positive or negative integer")
+        if not (isinstance(sourceGroupUri, str)):
+            raise TypeError("sourceGroupUri has to be a string")
+        if not (len(sourceGroupUri) > 0):
+            raise ValueError("sourceGroupUri can not be an empty string")
         self.topicPage["sourceGroups"].append({"uri": sourceGroupUri, "wgt": weight, "excluded": excluded })
 
 
@@ -329,7 +382,12 @@ class TopicPage(QueryParamsBase):
         @param locationUri: uri of the location to add
         @param weight: importance of the provided location (typically in range 1 - 50)
         """
-        assert isinstance(weight, (float, int)), "weight value has to be a positive or negative integer"
+        if not (isinstance(weight, (float, int))):
+            raise TypeError("weight value has to be a positive or negative integer")
+        if not (isinstance(locationUri, str)):
+            raise TypeError("locationUri has to be a string")
+        if not (len(locationUri) > 0):
+            raise ValueError("locationUri can not be an empty string")
         self.topicPage["locations"].append({"uri": locationUri, "wgt": weight})
 
 
@@ -337,10 +395,11 @@ class TopicPage(QueryParamsBase):
         """
         restrict the results to the list of specified languages
         """
-        if isinstance(languages, six.string_types):
+        if isinstance(languages, str):
             languages = [languages]
         for lang in languages:
-            assert len(lang) == 3, "Expected to get language in ISO3 code"
+            if not (len(lang) == 3):
+                raise ValueError("Expected to get language in ISO3 code")
         self.topicPage["langs"] = languages
 
 
@@ -348,7 +407,8 @@ class TopicPage(QueryParamsBase):
         """
         if true then the results have to mention at least one of the specified concepts or keywords
         """
-        assert isinstance(restrict, bool), "restrict value has to be a boolean value"
+        if not (isinstance(restrict, bool)):
+            raise TypeError("restrict value has to be a boolean value")
         self.topicPage["restrictToSetConcepts"] = restrict
 
 
@@ -356,7 +416,8 @@ class TopicPage(QueryParamsBase):
         """
         if set to true then return only results that are assigned to one of the specified categories
         """
-        assert isinstance(restrict, bool), "restrict value has to be a boolean value"
+        if not (isinstance(restrict, bool)):
+            raise TypeError("restrict value has to be a boolean value")
         self.topicPage["restrictToSetCategories"] = restrict
 
 
@@ -365,7 +426,8 @@ class TopicPage(QueryParamsBase):
         if set to true then return only results from one of the specified news sources
         this includes also sources set by source groups or by source locations
         """
-        assert isinstance(restrict, bool), "restrict value has to be a boolean value"
+        if not (isinstance(restrict, bool)):
+            raise TypeError("restrict value has to be a boolean value")
         self.topicPage["restrictToSetSources"] = restrict
 
 
@@ -373,7 +435,8 @@ class TopicPage(QueryParamsBase):
         """
         if set to true, then return only results that are located at one of the specified locations
         """
-        assert isinstance(restrict, bool), "restrict value has to be a boolean value"
+        if not (isinstance(restrict, bool)):
+            raise TypeError("restrict value has to be a boolean value")
         self.topicPage["restrictToSetLocations"] = restrict
 
 
@@ -387,7 +450,7 @@ class TopicPage(QueryParamsBase):
                 count: int = 100,
                 sortBy: str = "rel",
                 sortByAsc: bool = False,
-                returnInfo: ReturnInfo = ReturnInfo(),
+                returnInfo: Union[ReturnInfo, None] = None,
                 **kwargs):
         """
         return a list of articles that match the topic page
@@ -397,8 +460,10 @@ class TopicPage(QueryParamsBase):
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False)
         @param returnInfo: what details should be included in the returned information
         """
-        assert page >= 1
-        assert count <= 100
+        if not (page >= 1):
+            raise ValueError("page should be at least 1")
+        if not (count <= 100):
+            raise ValueError("count should be at most 100")
         params = {
             "action": "getArticlesForTopicPage",
             "resultType": "articles",
@@ -409,7 +474,7 @@ class TopicPage(QueryParamsBase):
             "articlesPage": page,
             "topicPage": json.dumps(self.topicPage)
         }
-        params.update(returnInfo.getParams("articles"))
+        params.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("articles"))
         params.update(kwargs)
         return self.eventRegistry.jsonRequest("/api/v1/article", params)
 
@@ -419,7 +484,7 @@ class TopicPage(QueryParamsBase):
                 count: int = 50,
                 sortBy: str = "rel",
                 sortByAsc: bool = False,
-                returnInfo: ReturnInfo = ReturnInfo(),
+                returnInfo: Union[ReturnInfo, None] = None,
                 **kwargs):
         """
         return a list of events that match the topic page
@@ -429,8 +494,10 @@ class TopicPage(QueryParamsBase):
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False)
         @param returnInfo: what details should be included in the returned information
         """
-        assert page >= 1
-        assert count <= 50
+        if not (page >= 1):
+            raise ValueError("page should be at least 1")
+        if not (count <= 50):
+            raise ValueError("count should be at most 50")
         params = {
             "action": "getEventsForTopicPage",
             "resultType": "events",
@@ -441,6 +508,6 @@ class TopicPage(QueryParamsBase):
             "eventsSortByAsc": sortByAsc,
             "topicPage": json.dumps(self.topicPage)
         }
-        params.update(returnInfo.getParams("events"))
+        params.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("events"))
         params.update(kwargs)
         return self.eventRegistry.jsonRequest("/api/v1/event", params)

@@ -1,6 +1,7 @@
 import unittest, jmespath, unicodedata
 from eventregistry import *
 
+
 class DataValidator(unittest.TestCase):
     def removeAccents(self, inputStr):
         nfkdForm = unicodedata.normalize('NFKD', inputStr)
@@ -13,7 +14,8 @@ class DataValidator(unittest.TestCase):
         # load settings from the current folder. use different instance than for regular ER requests
         currPath = os.path.split(os.path.realpath(__file__))[0]
         settPath = os.path.join(currPath, "settings-test.json")
-        self.er = EventRegistry(verboseOutput = True, settingsFName = settPath, allowUseOfArchive = False, minDelayBetweenRequests=0)
+        # repeatFailedRequestCount is set so that a failing endpoint makes the test fail instead of retrying indefinitely
+        self.er = EventRegistry(verboseOutput = True, settingsFName = settPath, allowUseOfArchive = False, minDelayBetweenRequests=0, repeatFailedRequestCount=1)
 
         self.articleInfo = ArticleInfoFlags(bodyLen = -1, concepts = True, storyUri = True, originalArticle = True, categories = True,
                 links = True, videos = True, image = True, location = True, extractedDates = True, socialScore = True, sentiment = True, includeArticleDuplicateList = True)
@@ -29,6 +31,23 @@ class DataValidator(unittest.TestCase):
                                         medoidArticle = True, commonDates = True, socialScore = True, imageCount = 2)
         self.returnInfo = ReturnInfo(articleInfo = self.articleInfo, conceptInfo = self.conceptInfo, eventInfo = self.eventInfo, storyInfo = self.storyInfo,
             sourceInfo = self.sourceInfo, locationInfo = self.locationInfo, categoryInfo = self.categoryInfo)
+
+
+    @staticmethod
+    def daysAgo(count):
+        """date string for the day `count` days ago. The tests run with allowUseOfArchive=False,
+        so the query dates have to be within the recent (non-archive) data window.
+        The individual backend instances can differ by +-1 day of content at the edges of that window, so the
+        tests that compare result counts always AND a date range of about two weeks ago (e.g. daysAgo(16)..daysAgo(12))
+        with the other query conditions - never OR a date condition with other conditions"""
+        return QueryParamsBase.encodeDate(datetime.date.today() - datetime.timedelta(days = count))
+
+
+    def assertCountsClose(self, count1, count2, msg = None, tolerance = 0.01):
+        """compare two result counts obtained by separate requests. The live data is continuously
+        updated (also for past dates), so the counts can legitimately differ by a small amount"""
+        allowed = max(10, int(max(count1, count2) * tolerance))
+        self.assertTrue(abs(count1 - count2) <= allowed, (msg or "The compared counts differ too much") + ": %d vs %d" % (count1, count2))
 
 
     def ensureValidConcept(self, concept, testName):
@@ -54,7 +73,7 @@ class DataValidator(unittest.TestCase):
 
     def ensureValidCategory(self, category, testName):
         for prop in ["uri", "parentUri"]:
-            self.assertTrue(prop in category, "Property '%s' was expected in source for test %s" % (prop, testName))
+            self.assertTrue(prop in category, "Property '%s' was expected in category for test %s" % (prop, testName))
 
 
     def ensureValidLocation(self, location, testName):
@@ -91,13 +110,13 @@ class DataValidator(unittest.TestCase):
 
     def ensureArticleBodyContainsText(self, article, text):
         self.assertTrue("body" in article, "Article did not contain body")
-        if re.search("(^|\s|\W)" + text + "($|'|\s|\W)", article["body"], re.IGNORECASE) == None:
+        if re.search(r"(^|\s|\W)" + text + r"($|'|\s|\W)", article["body"], re.IGNORECASE) is None:
             self.fail("Article body did not contain text '%s'" % (text))
 
 
     def ensureArticleBodyDoesNotContainText(self, article, text):
         if "body" in article:
-            if re.search("(^|\s|\W)" + text + "($|'|\s|\W)", article["body"], re.IGNORECASE) != None:
+            if re.search(r"(^|\s|\W)" + text + r"($|'|\s|\W)", article["body"], re.IGNORECASE) is not None:
                 self.fail("Article body contained text '%s' and it shouldn't" % (text))
 
 
@@ -129,11 +148,13 @@ class DataValidator(unittest.TestCase):
 
     def ensureArticleHasNotCategory(self, article, categoryUri):
         """
-        ensure that the article does not have the given category or ANY child category
+        ensure that the article is not annotated directly with the given category.
+        Note: ignoreCategoryUri does not exclude the items that are annotated only with a CHILD
+        of the ignored category, so child categories are not treated as a failure here
         """
-        for category in article["categories"]:
-            if category["uri"].find(categoryUri) != -1:
-                self.fail("Article categories contained an incorrect category '%s'" % (categoryUri))
+        for category in article.get("categories", []):
+            if category["uri"] == categoryUri:
+                self.fail("Article categories contained an excluded category '%s'" % (categoryUri))
 
 
     def ensureArticleSource(self, article, sourceUri):
@@ -141,19 +162,19 @@ class DataValidator(unittest.TestCase):
 
 
     def ensureArticleNotFromSource(self, article, sourceUri):
-        self.assertFalse(article.get("source").get("uri") == sourceUri, "Article source is not '%s'" % sourceUri)
+        self.assertFalse(article.get("source").get("uri") == sourceUri, "Article should not be from source '%s'" % sourceUri)
 
 
     def ensureArticlesContainText(self, articles, keyword):
         """assure that at least one article contains the given keyword"""
         hasKw = [True for art in articles if
-            re.search("(^|\s|\W)" + keyword + "($|'|\s|\W)", art["body"], re.IGNORECASE) != None]
+            re.search(r"(^|\s|\W)" + keyword + r"($|'|\s|\W)", art["body"], re.IGNORECASE) is not None]
         if len(hasKw) == 0:
             self.fail("None of the articles contained given keyword '%s'" % keyword)
 
 
     def ensureArticlesDoNotContainText(self, articles, keyword):
-        """assure that at least one article contains the given keyword"""
+        """assure that none of the articles contain the given keyword"""
         for article in articles:
             self.ensureArticleBodyDoesNotContainText(article, keyword)
 
@@ -192,11 +213,13 @@ class DataValidator(unittest.TestCase):
 
     def ensureEventHasNotCategory(self, event, categoryUri):
         """
-        ensure that the event does not have the given category or ANY child category
+        ensure that the event is not annotated directly with the given category.
+        Note: ignoreCategoryUri does not exclude the items that are annotated only with a CHILD
+        of the ignored category, so child categories are not treated as a failure here
         """
-        for category in event["categories"]:
-            if category["uri"].find(categoryUri) != -1:
-                self.fail("Event categories contained an incorrect category '%s'" % (categoryUri))
+        for category in event.get("categories", []):
+            if category["uri"] == categoryUri:
+                self.fail("Event categories contained an excluded category '%s'" % (categoryUri))
 
 
     def ensureSameResults(self, res1, res2, queryStr):
@@ -205,7 +228,10 @@ class DataValidator(unittest.TestCase):
         if not isinstance(arr1, list) or not isinstance(arr2, list):
             return
         if arr1 != [] and arr2 != []:
-            if arr1[0] != arr2[0]:
+            if isinstance(arr1[0], (int, float)) and isinstance(arr2[0], (int, float)):
+                # counts obtained by two separate requests can differ slightly since the data is continuously updated
+                self.assertCountsClose(arr1[0], arr2[0], "Found different results for query %s" % (queryStr))
+            elif arr1[0] != arr2[0]:
                 self.fail("Found different results for query %s" % (queryStr))
         elif len(arr1) != len(arr2):
             self.fail("Found different number of results for query %s" % (queryStr))

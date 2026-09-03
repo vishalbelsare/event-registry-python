@@ -1,7 +1,8 @@
-﻿import six, json
-from eventregistry.Base import *
-from eventregistry.ReturnInfo import *
-from eventregistry.Query import *
+﻿import json
+import datetime
+from eventregistry.Base import QueryItems, QueryParamsBase, Query
+from eventregistry.ReturnInfo import ReturnInfo
+from eventregistry.Query import ComplexArticleQuery
 from eventregistry.Logger import logger
 from eventregistry.EventRegistry import EventRegistry
 from typing import Union, List, Literal
@@ -140,7 +141,7 @@ class QueryArticles(Query):
 
         @param requestedResult: the information to return as the result of the query. By default return the list of matching articles
         """
-        super(QueryArticles, self).__init__()
+        super().__init__()
         self._setVal("action", "getArticles")
 
         self._setQueryArrVal(keywords, "keyword", "keywordOper", "and")
@@ -192,18 +193,23 @@ class QueryArticles(Query):
         self._setValIfNotDefault("hasAuthorsFilter", authorsFilter, "keepAll")
         self._setValIfNotDefault("hasLinksFilter", linksFilter, "keepAll")
         self._setValIfNotDefault("hasVideosFilter", videosFilter, "keepAll")
-        assert startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100
-        assert endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100
-        assert startSourceRankPercentile < endSourceRankPercentile
+        if not (startSourceRankPercentile >= 0 and startSourceRankPercentile % 10 == 0 and startSourceRankPercentile <= 100):
+            raise ValueError("startSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (endSourceRankPercentile >= 0 and endSourceRankPercentile % 10 == 0 and endSourceRankPercentile <= 100):
+            raise ValueError("endSourceRankPercentile should be a multiple of 10 between 0 and 100")
+        if not (startSourceRankPercentile < endSourceRankPercentile):
+            raise ValueError("startSourceRankPercentile should be smaller than endSourceRankPercentile")
         if startSourceRankPercentile != 0:
             self._setVal("startSourceRankPercentile", startSourceRankPercentile)
         if endSourceRankPercentile != 100:
             self._setVal("endSourceRankPercentile", endSourceRankPercentile)
         if minSentiment != -1:
-            assert minSentiment >= -1 and minSentiment <= 1
+            if not (minSentiment >= -1 and minSentiment <= 1):
+                raise ValueError("minSentiment should be a value between -1 and 1")
             self._setVal("minSentiment", minSentiment)
         if maxSentiment != 1:
-            assert maxSentiment >= -1 and maxSentiment <= 1
+            if not (maxSentiment >= -1 and maxSentiment <= 1):
+                raise ValueError("maxSentiment should be a value between -1 and 1")
             self._setVal("maxSentiment", maxSentiment)
         # if the user provided a custom value, then set the data type. Otherwise don't set it since the user could provide a complex query with data type values and we would
         self._setValIfNotDefault("dataType", dataType, "news")
@@ -221,7 +227,8 @@ class QueryArticles(Query):
         Set the single result type that you would like to be returned. Any previously set result types will be overwritten.
         Result types can be the classes that extend RequestArticles base class (see classes below).
         """
-        assert isinstance(requestArticles, RequestArticles), "QueryArticles class can only accept result requests that are of type RequestArticles"
+        if not (isinstance(requestArticles, RequestArticles)):
+            raise TypeError("QueryArticles class can only accept result requests that are of type RequestArticles")
         self.resultTypeList = [requestArticles]
 
 
@@ -232,7 +239,8 @@ class QueryArticles(Query):
         """
         # we need to set the dataType parameter here, otherwise users cannot ask for blog or pr articles using this way
         q = QueryArticles(requestedResult=RequestArticlesInfo(returnInfo = returnInfo))
-        assert isinstance(uriList, str) or isinstance(uriList, list), "uriList has to be a list of strings or a string that represent article uris"
+        if not (isinstance(uriList, str) or isinstance(uriList, list)):
+            raise TypeError("uriList has to be a list of strings or a string that represent article uris")
         q.queryParams = { "action": "getArticles", "articleUri": uriList, "dataType": ["news", "blog", "pr"] }
         return q
 
@@ -245,11 +253,10 @@ class QueryArticles(Query):
         # we need to set the dataType parameter here, otherwise users cannot ask for blog or pr articles using this way
         q = QueryArticles(requestedResult=RequestArticlesInfo(returnInfo=returnInfo))
         if isinstance(uriWgtList, list):
-            q.queryParams = { "action": "getArticles", "articleUriWgtList": ",".join(uriWgtList) }
-        elif isinstance(uriWgtList, str):
-            q.queryParams = { "action": "getArticles", "articleUriWgtList": uriWgtList, "dataType": ["news", "blog", "pr"] }
-        else:
-            assert False, "uriWgtList parameter did not contain a list or a string"
+            uriWgtList = ",".join(uriWgtList)
+        if not (isinstance(uriWgtList, str)):
+            raise TypeError("uriWgtList parameter did not contain a list or a string")
+        q.queryParams = { "action": "getArticles", "articleUriWgtList": uriWgtList, "dataType": ["news", "blog", "pr"] }
         return q
 
 
@@ -263,22 +270,22 @@ class QueryArticles(Query):
         if isinstance(query, ComplexArticleQuery):
             q._setVal("query", json.dumps(query.getQuery()))
         # provided query as a string containing the json object
-        elif isinstance(query, six.string_types):
+        elif isinstance(query, str):
             try:
-                foo = json.loads(query)
-            except:
-                raise Exception("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
+                json.loads(query)
+            except ValueError:
+                raise ValueError("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
             q._setVal("query", query)
         # provided query as a python dict
         elif isinstance(query, dict):
             q._setVal("query", json.dumps(query))
         else:
-            assert False, "The instance of query parameter was not a ComplexArticleQuery, a string or a python dict"
+            raise TypeError("The instance of query parameter was not a ComplexArticleQuery, a string or a python dict")
         return q
 
 
 
-class QueryArticlesIter(QueryArticles, six.Iterator):
+class QueryArticlesIter(QueryArticles):
     """
     class that simplifies and combines functionality from QueryArticles and RequestArticlesInfo. It provides an iterator
     over the list of articles that match the specified conditions
@@ -287,8 +294,11 @@ class QueryArticlesIter(QueryArticles, six.Iterator):
         """
         return the number of articles that match the criteria
         """
+        # remember the currently requested result type so that calling count() does not change the query
+        prevResultTypeList = self.resultTypeList
         self.setRequestedResult(RequestArticlesInfo())
         res = eventRegistry.execQuery(self)
+        self.resultTypeList = prevResultTypeList
         if "error" in res:
             logger.error(res["error"])
         count = res.get("articles", {}).get("totalResults", 0)
@@ -334,14 +344,17 @@ class QueryArticlesIter(QueryArticles, six.Iterator):
         if isinstance(query, ComplexArticleQuery):
             q._setVal("query", json.dumps(query.getQuery()))
         # provided query as a string containing the json object
-        elif isinstance(query, six.string_types):
-            foo = json.loads(query)
+        elif isinstance(query, str):
+            try:
+                json.loads(query)
+            except ValueError:
+                raise ValueError("Failed to parse the provided string content as a JSON object. Please check the content provided as a parameter to the initWithComplexQuery() method")
             q._setVal("query", query)
         # provided query as a python dict
         elif isinstance(query, dict):
             q._setVal("query", json.dumps(query))
         else:
-            assert False, "The instance of query parameter was not a ComplexArticleQuery, a string or a python dict"
+            raise TypeError("The instance of query parameter was not a ComplexArticleQuery, a string or a python dict")
         return q
 
 
@@ -352,10 +365,9 @@ class QueryArticlesIter(QueryArticles, six.Iterator):
         """
         # we need to set the dataType parameter here, otherwise users cannot ask for blog or pr articles using this way
         q = QueryArticlesIter()
-        if isinstance(uriList, list) or isinstance(uriList, str):
-            q.queryParams = { "action": "getArticles", "articleUri": uriList, "dataType": ["news", "blog", "pr"] }
-        else:
-            assert False, "uriList parameter did not contain a list or a string"
+        if not (isinstance(uriList, (list, str))):
+            raise TypeError("uriList parameter did not contain a list or a string")
+        q.queryParams = { "action": "getArticles", "articleUri": uriList, "dataType": ["news", "blog", "pr"] }
         return q
 
 
@@ -364,9 +376,9 @@ class QueryArticlesIter(QueryArticles, six.Iterator):
         # try to get more uris, if none
         self._articlePage += 1
         # if we have already obtained all pages, then exit
-        if self._totalPages != None and self._articlePage > self._totalPages:
+        if self._totalPages is not None and self._articlePage > self._totalPages:
             return
-        self.setRequestedResult(RequestArticlesInfo(page=self._articlePage,
+        self.setRequestedResult(RequestArticlesInfo(page=self._articlePage, count=self._articleBatchSize,
             sortBy=self._sortBy, sortByAsc=self._sortByAsc,
             returnInfo = self._returnInfo))
         if self._er._verboseOutput:
@@ -381,6 +393,13 @@ class QueryArticlesIter(QueryArticles, six.Iterator):
 
 
     def __iter__(self):
+        if not hasattr(self, "_er"):
+            raise RuntimeError("Iterating is only possible after calling the execQuery() method first")
+        # reset the paging state so that a new iteration starts from the first result again
+        self._articlePage = 0
+        self._totalPages = None
+        self._currItem = 0
+        self._articleList = []
         return self
 
 
@@ -413,7 +432,7 @@ class RequestArticlesInfo(RequestArticles):
                  page: int = 1,
                  count: int = 100,
                  sortBy: str = "date", sortByAsc: bool = False,
-                 returnInfo : Union[ReturnInfo, None] = None):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return article details for resulting articles
         @param page: page of the articles to return
@@ -422,9 +441,11 @@ class RequestArticlesInfo(RequestArticles):
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 200, "at most 100 articles can be returned per call"
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 100):
+            raise ValueError("at most 100 articles can be returned per call")
         self.resultType = "articles"
         self.articlesPage = page
         self.articlesCount = count
@@ -438,8 +459,8 @@ class RequestArticlesInfo(RequestArticles):
         """
         set the page of results to obtain
         """
-        super(RequestArticles, self).__init__()
-        assert page >= 1, "page has to be >= 1"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
         self.articlesPage = page
 
 
@@ -456,9 +477,11 @@ class RequestArticlesUriWgtList(RequestArticles):
         @param sortBy: how are articles sorted. Options: id (internal id), date (publishing date), cosSim (closeness to the event centroid), rel (relevance to the query), sourceImportance (manually curated score of source importance - high value, high importance), sourceImportanceRank (reverse of sourceImportance), sourceAlexaGlobalRank (global rank of the news source), sourceAlexaCountryRank (country rank of the news source), socialScore (total shares on social media), facebookShares (shares on Facebook only)
         @param sortByAsc: should the results be sorted in ascending order (True) or descending (False) according to the sortBy criteria
         """
-        super(RequestArticles, self).__init__()
-        assert page >= 1, "page has to be >= 1"
-        assert count <= 50000
+        super().__init__()
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
+        if not (count <= 50000):
+            raise ValueError("count should be at most 50000")
         self.resultType = "uriWgtList"
         self.uriWgtListPage = page
         self.uriWgtListCount = count
@@ -467,7 +490,8 @@ class RequestArticlesUriWgtList(RequestArticles):
 
 
     def setPage(self, page: int):
-        assert page >= 1, "page has to be >= 1"
+        if not (page >= 1):
+            raise ValueError("page has to be >= 1")
         self.uriWgtListPage = page
 
 
@@ -477,7 +501,7 @@ class RequestArticlesTimeAggr(RequestArticles):
         """
         return time distribution of resulting articles
         """
-        super(RequestArticles, self).__init__()
+        super().__init__()
         self.resultType = "timeAggr"
 
 
@@ -488,7 +512,7 @@ class RequestArticlesConceptAggr(RequestArticles):
                  conceptCountPerType: Union[int, None] = None,
                  conceptScoring: str = "importance",
                  articlesSampleSize: int = 10000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get aggreate of concepts of resulting articles
         @param conceptCount: number of top concepts to return (at most 500)
@@ -501,33 +525,36 @@ class RequestArticlesConceptAggr(RequestArticles):
         @param articlesSampleSize: on what sample of results should the aggregate be computed (at most 20000)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
-        assert conceptCount <= 500
-        assert articlesSampleSize <= 20000
+        super().__init__()
+        if not (conceptCount <= 500):
+            raise ValueError("conceptCount should be at most 500")
+        if not (articlesSampleSize <= 20000):
+            raise ValueError("articlesSampleSize should be at most 20000")
         self.resultType = "conceptAggr"
         self.conceptAggrConceptCount = conceptCount
         self.conceptAggrSampleSize = articlesSampleSize
         self.conceptAggrScoring = conceptScoring
-        if conceptCountPerType != None:
+        if conceptCountPerType is not None:
             self.conceptAggrConceptCountPerType = conceptCountPerType
-        self.__dict__.update(returnInfo.getParams("conceptAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptAggr"))
 
 
 
 class RequestArticlesCategoryAggr(RequestArticles):
     def __init__(self,
                  articlesSampleSize: int = 20000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         return aggreate of categories of resulting articles
         @param articlesSampleSize: on what sample of results should the aggregate be computed (at most 50000)
         @param returnInfo: what details about the categories should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
-        assert articlesSampleSize <= 50000
+        super().__init__()
+        if not (articlesSampleSize <= 50000):
+            raise ValueError("articlesSampleSize should be at most 50000")
         self.resultType = "categoryAggr"
         self.categoryAggrSampleSize = articlesSampleSize
-        self.__dict__.update(returnInfo.getParams("categoryAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("categoryAggr"))
 
 
 
@@ -535,7 +562,7 @@ class RequestArticlesSourceAggr(RequestArticles):
     def __init__(self,
                  sourceCount: int = 50,
                  normalizeBySourceArts: bool = False,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get aggreate of news sources of resulting articles
         @param sourceCount: the number of top sources to return
@@ -545,11 +572,11 @@ class RequestArticlesSourceAggr(RequestArticles):
             content overall, but their published content is more about the searched query.
         @param returnInfo: what details about the sources should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
+        super().__init__()
         self.resultType = "sourceAggr"
         self.sourceAggrSourceCount = sourceCount
         self.sourceAggrNormalizeBySourceArts = normalizeBySourceArts
-        self.__dict__.update(returnInfo.getParams("sourceAggr"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("sourceAggr"))
 
 
 class RequestArticlesKeywordAggr(RequestArticles):
@@ -559,8 +586,9 @@ class RequestArticlesKeywordAggr(RequestArticles):
         get top keywords in the resulting articles
         @param articlesSampleSize: on what sample of results should the aggregate be computed (at most 20000)
         """
-        super(RequestArticles, self).__init__()
-        assert articlesSampleSize <= 20000
+        super().__init__()
+        if not (articlesSampleSize <= 20000):
+            raise ValueError("articlesSampleSize should be at most 20000")
         self.resultType = "keywordAggr"
         self.keywordAggrSampleSize = articlesSampleSize
 
@@ -572,7 +600,7 @@ class RequestArticlesConceptGraph(RequestArticles):
                  linkCount: int = 50,
                  articlesSampleSize: int = 10000,
                  skipQueryConcepts: bool = True,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get concept graph of resulting articles. Identify concepts that frequently co-occur with other concepts
         @param conceptCount: how many concepts should be returned (at most 1000)
@@ -580,16 +608,19 @@ class RequestArticlesConceptGraph(RequestArticles):
         @param articlesSampleSize: on what sample of results should the aggregate be computed (at most 50000)
         @param returnInfo: what details about the concepts should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
-        assert conceptCount <= 1000
-        assert linkCount <= 2000
-        assert articlesSampleSize <= 50000
+        super().__init__()
+        if not (conceptCount <= 1000):
+            raise ValueError("conceptCount should be at most 1000")
+        if not (linkCount <= 2000):
+            raise ValueError("linkCount should be at most 2000")
+        if not (articlesSampleSize <= 50000):
+            raise ValueError("articlesSampleSize should be at most 50000")
         self.resultType = "conceptGraph"
         self.conceptGraphConceptCount = conceptCount
         self.conceptGraphLinkCount = linkCount
         self.conceptGraphSampleSize = articlesSampleSize
         self.conceptGraphSkipQueryConcepts = skipQueryConcepts
-        self.__dict__.update(returnInfo.getParams("conceptGraph"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptGraph"))
 
 
 
@@ -598,7 +629,7 @@ class RequestArticlesConceptMatrix(RequestArticles):
                  conceptCount: int = 25,
                  measure: str = "pmi",
                  articlesSampleSize: int = 10000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get aggreate of concept co-occurences of resulting articles
         @param conceptCount: how many concepts should be returned (at most 200)
@@ -606,14 +637,16 @@ class RequestArticlesConceptMatrix(RequestArticles):
         @param articlesSampleSize: on what sample of results should the aggregate be computed (at most 50000)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
-        assert conceptCount <= 200
-        assert articlesSampleSize <= 50000
+        super().__init__()
+        if not (conceptCount <= 200):
+            raise ValueError("conceptCount should be at most 200")
+        if not (articlesSampleSize <= 50000):
+            raise ValueError("articlesSampleSize should be at most 50000")
         self.resultType = "conceptMatrix"
         self.conceptMatrixConceptCount = conceptCount
         self.conceptMatrixMeasure = measure
         self.conceptMatrixSampleSize = articlesSampleSize
-        self.__dict__.update(returnInfo.getParams("conceptMatrix"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptMatrix"))
 
 
 
@@ -622,7 +655,7 @@ class RequestArticlesConceptTrends(RequestArticles):
                  conceptUris: Union[str, List[str], None] = None,
                  conceptCount: int = 25,
                  articlesSampleSize: int = 10000,
-                 returnInfo: ReturnInfo = ReturnInfo()):
+                 returnInfo: Union[ReturnInfo, None] = None):
         """
         get trending of concepts in the resulting articles
         @param conceptUris: list of concept URIs for which to return trending information. If None, then top concepts will be automatically computed
@@ -630,15 +663,17 @@ class RequestArticlesConceptTrends(RequestArticles):
         @param articlesSampleSize: on what sample of results should the aggregate be computed (at most 50000)
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
-        assert conceptCount <= 50
-        assert articlesSampleSize <= 50000
+        super().__init__()
+        if not (conceptCount <= 50):
+            raise ValueError("conceptCount should be at most 50")
+        if not (articlesSampleSize <= 50000):
+            raise ValueError("articlesSampleSize should be at most 50000")
         self.resultType = "conceptTrends"
         if conceptUris is not None:
             self.conceptTrendsConceptUri = conceptUris
         self.conceptTrendsConceptCount = conceptCount
         self.conceptTrendsSampleSize = articlesSampleSize
-        self.__dict__.update(returnInfo.getParams("conceptTrends"))
+        self.__dict__.update((returnInfo if returnInfo is not None else ReturnInfo()).getParams("conceptTrends"))
 
 
 
@@ -647,7 +682,7 @@ class RequestArticlesDateMentionAggr(RequestArticles):
     get mentioned dates in the articles
     """
     def __init__(self):
-        super(RequestArticles, self).__init__()
+        super().__init__()
         self.resultType = "dateMentionAggr"
 
 
@@ -675,12 +710,15 @@ class RequestArticlesRecentActivity(RequestArticles):
         @param mandatorySourceLocation: return only articles for which we know the source's geographic location
         @param returnInfo: what details should be included in the returned information
         """
-        super(RequestArticles, self).__init__()
-        assert maxArticleCount <= 2000
-        assert updatesAfterTm is None or updatesAfterMinsAgo is None, "You should specify either updatesAfterTm or updatesAfterMinsAgo parameter, but not both"
-        assert updatesUntilTm is None or updatesUntilMinsAgo is None, "You should specify either updatesUntilTm or updatesUntilMinsAgo parameter, but not both"
+        super().__init__()
+        if not (maxArticleCount <= 2000):
+            raise ValueError("maxArticleCount should be at most 2000")
+        if not (updatesAfterTm is None or updatesAfterMinsAgo is None):
+            raise ValueError("You should specify either updatesAfterTm or updatesAfterMinsAgo parameter, but not both")
+        if not (updatesUntilTm is None or updatesUntilMinsAgo is None):
+            raise ValueError("You should specify either updatesUntilTm or updatesUntilMinsAgo parameter, but not both")
         self.resultType = "recentActivityArticles"
-        self.recentActivityArticlesMaxArticleCount  = maxArticleCount
+        self.recentActivityArticlesMaxArticleCount = maxArticleCount
         if updatesAfterTm is not None:
             self.recentActivityArticlesUpdatesAfterTm = QueryParamsBase.encodeDateTime(updatesAfterTm)
         if updatesAfterMinsAgo is not None:
@@ -698,7 +736,6 @@ class RequestArticlesRecentActivity(RequestArticles):
         if updatesAfterPrUri is not None:
             self.recentActivityArticlesPrUpdatesAfterUri = updatesAfterPrUri
 
-        self.recentActivityArticlesMaxArticleCount = maxArticleCount
         self.recentActivityArticlesMandatorySourceLocation = mandatorySourceLocation
         if returnInfo is not None:
             self.__dict__.update(returnInfo.getParams("recentActivityArticles"))

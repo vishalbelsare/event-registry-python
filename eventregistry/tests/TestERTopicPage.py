@@ -1,4 +1,4 @@
-import unittest, math
+import unittest, sys
 from eventregistry import *
 from eventregistry.tests.DataValidator import DataValidator
 

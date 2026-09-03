@@ -8,13 +8,36 @@ er = EventRegistry(allowUseOfArchive=False)
 # max articles to return - change for your use case
 MAX_RESULTS = 100
 
+#
+fullReturnInfo = ReturnInfo(
+    articleInfo=ArticleInfoFlags(concepts=True, categories=True, location=True, image=True, links=True, videos=True, socialScore=True),
+    conceptInfo=ConceptInfoFlags(image=True, description=True, trendingScore=True, synonyms=True),
+    sourceInfo=SourceInfoFlags(image=True, description=True, location=True, ranking=True, socialMedia=True),
+)
 # search for the phrase "Tesla Inc" - both words have to appear together - download at most 100 articles
 # for each article retrieve also the list of mentioned concepts, categories, location, image, links and videos from the article
 q = QueryArticlesIter(keywords = "Tesla Inc")
 for art in q.execQuery(er,
-                       returnInfo = ReturnInfo(articleInfo=ArticleInfoFlags(concepts=True, categories=True, location=True, image=True, links=True, videos=True)),
+                       returnInfo = fullReturnInfo,
                        maxItems = MAX_RESULTS):
     print(art)
+
+# count the number of results matching the query
+count = q.count(er)
+print(count)
+
+q = QueryArticlesIter(
+    keywords = "Tesla Inc",
+    sourceLocationUri=QueryItems.OR([
+        "http://en.wikipedia.org/wiki/United_Kingdom",
+        "http://en.wikipedia.org/wiki/United_States",
+        "http://en.wikipedia.org/wiki/Canada"]),
+    ignoreSourceGroupUri="paywall/paywalled_sources",
+    dataType= ["news", "pr"])
+
+for art in q.execQuery(er, maxItems = MAX_RESULTS):
+    print(art)
+
 
 # search for articles that mention both of the two words - maybe together, maybe apart
 # this form of specifying multiple keywords, concepts, etc is now deprecated. When you have a list,
@@ -138,23 +161,194 @@ res = er.execQuery(q)
 
 #
 # OTHER AGGREGATES (INSTEAD OF OBTAINING ARTICLES)
+# each aggregate is computed over the articles that match the query. Below each example is a shortened
+# version of the returned result so that you can see the structure of the output.
+# When the query matches a large number of articles, the aggregate is computed on a sample of the articles -
+# in that case the result also contains a "warning" and "usedResults" (sample size) next to "totalResults".
 #
 
 # return top concept mentioned in the articles about Apple
 q = QueryArticles(conceptUri=er.getConceptUri("apple"))
 q.setRequestedResult(RequestArticlesConceptAggr())
+res = er.execQuery(q)
+# {
+#     "conceptAggr": {
+#         "warning": "Due to large number of results, the information was computed on a subset of 10,000 articles",
+#         "usedResults": 10000,
+#         "totalResults": 109999,
+#         "results": [
+#             {"uri": "http://en.wikipedia.org/wiki/IPhone", "type": "wiki", "label": {"eng": "IPhone"}, "score": 100},
+#             {"uri": "http://en.wikipedia.org/wiki/Artificial_intelligence", "type": "wiki", "label": {"eng": "Artificial intelligence"}, "score": 66.86},
+#             ...
+#         ]
+#     }
+# }
 
 # return the top categories in the articles about Tesla
 q = QueryArticles(conceptUri=er.getConceptUri("Tesla"))
 q.setRequestedResult(RequestArticlesCategoryAggr())
+res = er.execQuery(q)
+# {
+#     "categoryAggr": {
+#         "warning": "Due to large number of results, the information was computed on a subset of 20,000 articles",
+#         "usedResults": 20000,
+#         "totalResults": 31262,
+#         "results": [
+#             {"uri": "news/Business", "label": "news/Business", "count": 9531},
+#             {"uri": "iptc/economy,_business_and_finance/products_and_services/manufacturing_and_engineering", "label": "iptc/economy, business and finance/products and services/manufacturing and engineering", "count": 7628},
+#             ...
+#         ]
+#     }
+# }
 
 # obtain the top news sources that report about iphones
 q = QueryArticles(keywords="iphone")
 q.setRequestedResult(RequestArticlesSourceAggr())
+res = er.execQuery(q)
+# "counts.frequency" is the number of matching articles from the source, "counts.total" is the number of all articles from the source
+# {
+#     "sourceAggr": {
+#         "usedResults": 58194,
+#         "totalResults": 58194,
+#         "countsPerSource": [
+#             {"source": {"uri": "en.parbattanews.com", "dataType": "news", "title": "parbattanews : English Version"}, "counts": {"total": 25003, "frequency": 1351}},
+#             {"source": {"uri": "tw.news.yahoo.com", "dataType": "news", "title": "Yahoo News"}, "counts": {"total": 116033, "frequency": 623}},
+#             ...
+#         ],
+#         "countsPerCountry": [
+#             {"uri": "http://en.wikipedia.org/wiki/United_States", "type": "loc", "label": {"eng": "United States"}, "location": {"type": "country", "wikiUri": "http://en.wikipedia.org/wiki/United_States", "label": {"eng": "United States"}, "lat": 39.76, "long": -98.5}, "frequency": 10410, "sources": 883},
+#             {"uri": "http://en.wikipedia.org/wiki/India", "type": "loc", "label": {"eng": "India"}, "location": {"type": "country", "wikiUri": "http://en.wikipedia.org/wiki/India", "label": {"eng": "India"}, "lat": 22, "long": 79}, "frequency": 3713, "sources": 177},
+#             ...
+#         ]
+#     }
+# }
 
 # obtain the top keywords that summarize articles about Trump
 q = QueryArticles(keywords="Trump")
 q.setRequestedResult(RequestArticlesKeywordAggr())
+res = er.execQuery(q)
+# {
+#     "keywordAggr": {
+#         "warning": "Due to large number of results, the information was computed on a subset of 2,000 articles",
+#         "usedResults": 2000,
+#         "totalResults": 608229,
+#         "results": [
+#             {"keyword": "blanche", "weight": 0.1904},
+#             {"keyword": "iran", "weight": 0.1545},
+#             {"keyword": "u.s", "weight": 0.1405},
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the number of articles about Tesla published on each day
+q = QueryArticles(conceptUri=er.getConceptUri("Tesla"))
+q.setRequestedResult(RequestArticlesTimeAggr())
+res = er.execQuery(q)
+# {
+#     "timeAggr": {
+#         "usedResults": 31812,
+#         "totalResults": 31812,
+#         "results": [
+#             {"date": "2026-07-26", "count": 544},
+#             {"date": "2026-07-27", "count": 1678},
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the concept graph - top concepts in the articles about Apple and the links between the concepts
+# that frequently co-occur in the same articles
+q = QueryArticles(conceptUri=er.getConceptUri("apple"))
+q.setRequestedResult(RequestArticlesConceptGraph())
+res = er.execQuery(q)
+# {
+#     "conceptGraph": {
+#         "warning": "Due to large number of results, the information was computed on a subset of 10,000 articles",
+#         "usedResults": 10000,
+#         "totalResults": 110031,
+#         "concepts": [
+#             {"uri": "http://en.wikipedia.org/wiki/IPhone", "type": "wiki", "score": 5512, "label": {"eng": "IPhone"}},
+#             {"uri": "http://en.wikipedia.org/wiki/Artificial_intelligence", "type": "wiki", "score": 4133, "label": {"eng": "Artificial intelligence"}},
+#             ...
+#         ],
+#         "links": [
+#             {"uri1": "http://en.wikipedia.org/wiki/Artificial_intelligence", "uri2": "http://en.wikipedia.org/wiki/IPhone", "score": 2102},
+#             {"uri1": "http://en.wikipedia.org/wiki/Smartphone", "uri2": "http://en.wikipedia.org/wiki/IPhone", "score": 1726},
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the concept matrix - co-occurrence of the top concepts in the articles about Apple
+# freqMatrix[i][j] is the number of articles that mention both concepts[i] and concepts[j] (the diagonal is the frequency of the concept itself)
+# scoreMatrix[i][j] is the "interestingness" of the pair, computed with the selected measure (pmi by default)
+q = QueryArticles(conceptUri=er.getConceptUri("apple"))
+q.setRequestedResult(RequestArticlesConceptMatrix())
+res = er.execQuery(q)
+# {
+#     "conceptMatrix": {
+#         "warning": "Due to large number of results, the information was computed on a subset of 10,000 articles",
+#         "usedResults": 10000,
+#         "totalResults": 109999,
+#         "sampleSize": 10000,
+#         "concepts": [
+#             {"uri": "http://en.wikipedia.org/wiki/European_Commission", "type": "org", "label": {"eng": "European Commission"}},
+#             {"uri": "http://en.wikipedia.org/wiki/Ireland", "type": "loc", "label": {"eng": "Ireland"}, "location": {"type": "country", "label": {"eng": "Ireland"}}},
+#             ...
+#         ],
+#         "freqMatrix": [
+#             [598, 134, ...],
+#             [134, 235, ...],
+#             ...
+#         ],
+#         "scoreMatrix": [
+#             [0, 2.255, ...],
+#             [2.255, 0, ...],
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the trends of the top concepts in the articles about Tesla - how frequently each concept was mentioned on each day
+# conceptFreq[i] in each trend item is the number of articles on that date that mention conceptInfo[i]
+# totArts is the total number of all articles published on that date (can be used to normalize the frequencies)
+q = QueryArticles(conceptUri=er.getConceptUri("Tesla"))
+q.setRequestedResult(RequestArticlesConceptTrends())
+res = er.execQuery(q)
+# {
+#     "conceptTrends": {
+#         "warning": "Due to large number of results, the information was computed on a subset of 10,000 articles",
+#         "usedResults": 10000,
+#         "totalResults": 31267,
+#         "conceptInfo": [
+#             {"uri": "http://en.wikipedia.org/wiki/Robotaxi", "type": "wiki", "score": 1, "label": {"eng": "Robotaxi"}},
+#             {"uri": "http://en.wikipedia.org/wiki/Tesla_Model_Y", "type": "wiki", "score": 1, "label": {"eng": "Tesla Model Y"}},
+#             ...
+#         ],
+#         "trends": [
+#             {"date": "2026-07-27", "conceptFreq": [1678, 392, ...], "totArts": 575265},
+#             {"date": "2026-07-28", "conceptFreq": [1685, 393, ...], "totArts": 629462},
+#             ...
+#         ]
+#     }
+# }
+
+# obtain the dates that are mentioned in the text of the articles about Tesla (not the publishing dates)
+q = QueryArticles(conceptUri=er.getConceptUri("Tesla"))
+q.setRequestedResult(RequestArticlesDateMentionAggr())
+res = er.execQuery(q)
+# {
+#     "dateMentionAggr": {
+#         "usedResults": 31817,
+#         "totalResults": 31817,
+#         "results": [
+#             {"date": "2026-08-04", "count": 564},
+#             {"date": "2026-08-06", "count": 479},
+#             ...
+#         ]
+#     }
+# }
 
 
 #
